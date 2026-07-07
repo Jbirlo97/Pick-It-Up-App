@@ -3,6 +3,7 @@ import { C } from "../theme";
 import { expandCue, expandError } from "../lib/movementCopy";
 import { ExerciseDemoComingSoon, ExerciseThumbnailSlot } from "../components/ExerciseDemoComingSoon";
 import { SectionLabel } from "../components/Shared";
+import { getSwapOptions, type SwapOption } from "../lib/exerciseSwap";
 import type { AppState, PlayerSession, SessionExercise, SetState } from "../types";
 
 type Phase = "intro" | "active" | "rest" | "complete";
@@ -37,7 +38,24 @@ export function Player({
   const [tab, setTab] = useState<Tab>("cues");
   const [expandedCue, setExpandedCue] = useState<number | null>(null);
   const [expandedError, setExpandedError] = useState<number | null>(null);
+  const [swapOpenIndex, setSwapOpenIndex] = useState<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Per docs/session-structure-spec.md §2: applies a swap in place, keyed by
+  // position in the flat exercises list, then rebuilds `phases` from it so
+  // both views (and the currently-playing index) stay in sync.
+  const applySwap = (targetIndex: number, option: SwapOption) => {
+    setState((s) => {
+      if (!s.currentSession) return s;
+      const exercises = s.currentSession.exercises.map((e, i) => (i === targetIndex ? option.apply(e) : e));
+      const phases = {
+        warmup: exercises.filter((e) => e.phase === "warmup"),
+        main: exercises.filter((e) => e.phase === "main"),
+        cooldown: exercises.filter((e) => e.phase === "cooldown"),
+      };
+      return { ...s, currentSession: { ...s.currentSession, exercises, phases } };
+    });
+  };
 
   const ex = session.exercises[exIdx];
   const mov = ex ? ex.movement : null;
@@ -126,17 +144,49 @@ export function Player({
                   {list.length} · ~{phaseMinutes(list)} min
                 </div>
               </div>
-              {list.map((e, i) => (
-                <div key={phaseKey + i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderBottom: "1px solid rgba(200,221,208,0.1)" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(200,221,208,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: C.go, fontWeight: 700, flexShrink: 0, fontFamily: "Inter,sans-serif" }}>{session.exercises.indexOf(e) + 1}</div>
-                  <ExerciseThumbnailSlot size={32} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, color: C.cr }}>{e.movement ? e.movement.name : ""}</div>
-                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.sl }}>{e.reps}</div>
+              {list.map((e, i) => {
+                const globalIndex = session.exercises.indexOf(e);
+                const isSwapOpen = swapOpenIndex === globalIndex;
+                const swapOptions = getSwapOptions(e, state.injuries);
+                return (
+                  <div key={phaseKey + i}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderBottom: isSwapOpen ? "none" : "1px solid rgba(200,221,208,0.1)" }}>
+                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(200,221,208,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: C.go, fontWeight: 700, flexShrink: 0, fontFamily: "Inter,sans-serif" }}>{globalIndex + 1}</div>
+                      <ExerciseThumbnailSlot size={32} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, color: C.cr }}>{e.movement ? e.movement.name : ""}</div>
+                        <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.sl }}>{e.reps}</div>
+                      </div>
+                      <span style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.go, background: "rgba(200,169,106,0.15)", border: "1px solid " + C.go, borderRadius: 12, padding: "2px 8px", fontWeight: 700, flexShrink: 0 }}>×{e.sets}</span>
+                      {swapOptions.length > 0 ? (
+                        <button
+                          onClick={() => setSwapOpenIndex(isSwapOpen ? null : globalIndex)}
+                          aria-label={"Swap " + (e.movement ? e.movement.name : "exercise")}
+                          style={{ background: "none", border: "1px solid rgba(200,221,208,0.3)", borderRadius: 8, color: C.sl, fontSize: 13, padding: "4px 7px", cursor: "pointer", flexShrink: 0, lineHeight: 1 }}
+                        >
+                          ⇄
+                        </button>
+                      ) : null}
+                    </div>
+                    {isSwapOpen && swapOptions.length > 0 ? (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "0 0 10px 42px", borderBottom: "1px solid rgba(200,221,208,0.1)" }}>
+                        {swapOptions.map((opt) => (
+                          <button
+                            key={opt.direction}
+                            onClick={() => {
+                              applySwap(globalIndex, opt);
+                              setSwapOpenIndex(null);
+                            }}
+                            style={{ padding: "6px 10px", borderRadius: 16, background: "rgba(200,169,106,0.12)", border: "1px solid " + C.go, color: C.go, fontFamily: "Inter,sans-serif", fontSize: 11, cursor: "pointer" }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                  <span style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.go, background: "rgba(200,169,106,0.15)", border: "1px solid " + C.go, borderRadius: 12, padding: "2px 8px", fontWeight: 700, flexShrink: 0 }}>×{e.sets}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           );
         })}
@@ -249,6 +299,23 @@ export function Player({
       <div style={{ background: "rgba(200,169,106,0.08)", padding: "10px 24px", borderBottom: "1px solid " + C.sl }}>
         <div style={{ fontFamily: "'Georgia',serif", fontSize: 13, color: C.gd, fontStyle: "italic" }}>"{ex.coachNote}"</div>
       </div>
+      {(() => {
+        const swapOptions = getSwapOptions(ex, state.injuries);
+        if (!swapOptions.length) return null;
+        return (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "10px 24px", borderBottom: "1px solid " + C.sl }}>
+            {swapOptions.map((opt) => (
+              <button
+                key={opt.direction}
+                onClick={() => applySwap(exIdx, opt)}
+                style={{ padding: "6px 12px", borderRadius: 16, background: "transparent", border: "1px solid " + C.gd, color: C.gd, fontFamily: "Inter,sans-serif", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
       {state.spotifyConnected ? (
         <div style={{ background: "rgba(29,185,84,0.08)", padding: "8px 24px", borderBottom: "1px solid " + C.sl, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 14 }}>♫</span>
