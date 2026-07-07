@@ -8,6 +8,7 @@ import { RecipeCard } from "../components/RecipeCard";
 import { RecipeDetail } from "../components/RecipeDetail";
 import { insertMeal } from "../lib/db";
 import { useUserId } from "../state/UserContext";
+import { calculateBmi, calculateMacros, calculateTdee, calculateWhtr } from "../lib/healthCalcs";
 import type { AppState, Meal, ScreenId, SetState } from "../types";
 
 const GOAL_DISPLAY: Record<string, { label: string; icon: string }> = {
@@ -73,18 +74,16 @@ export function Nourish({ state, setState, setScreen }: { state: AppState; setSt
   const age = Number(bodyStats?.age || 0);
   const unit = bodyStats?.unit || "metric";
   const sex = bodyStats?.sex || "";
-  const hm = unit === "imperial" ? h * 0.0254 : h / 100;
-  const wkg = unit === "imperial" ? w * 0.453592 : w;
-  const hcm = unit === "imperial" ? h * 2.54 : h;
-  const bmi = w && h ? (wkg / (hm * hm)).toFixed(1) : null;
-  const bmiCat = bmi ? (Number(bmi) < 18.5 ? "Underweight" : Number(bmi) < 25 ? "Healthy" : Number(bmi) < 30 ? "Overweight" : "Obese") : null;
   const waist = Number(bodyStats?.waist || 0);
-  const waistCm = unit === "imperial" ? waist * 2.54 : waist;
-  const whtr = waistCm && hcm ? (waistCm / hcm).toFixed(2) : null;
-  const whtrCat = whtr ? (Number(whtr) < 0.5 ? "Healthy range" : Number(whtr) < 0.6 ? "Increased risk" : "High risk") : null;
-  const sexOffset = sex === "male" ? 5 : sex === "female" ? -161 : -78;
-  const tdee = w && h && age ? Math.round((10 * wkg + 6.25 * hcm - 5 * age + sexOffset) * 1.55) : null;
-  const macros = tdee ? { p: Math.round((tdee * 0.3) / 4), c: Math.round((tdee * 0.4) / 4), f: Math.round((tdee * 0.3) / 9) } : null;
+
+  const bmiResult = calculateBmi(w, h, unit);
+  const bmi = bmiResult ? bmiResult.bmi.toFixed(1) : null;
+  const bmiCat = bmiResult?.category ?? null;
+  const whtrResult = calculateWhtr(waist, h, unit);
+  const whtr = whtrResult ? whtrResult.whtr.toFixed(2) : null;
+  const whtrCat = whtrResult?.category ?? null;
+  const tdee = calculateTdee(w, h, age, sex, unit);
+  const macros = tdee ? calculateMacros(tdee) : null;
 
   const addMeal = () => {
     if (!d.name.trim()) return;
