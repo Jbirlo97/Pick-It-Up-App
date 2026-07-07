@@ -3,6 +3,8 @@ import { C } from "../theme";
 import { MOVS } from "../data/exercises-legacy";
 import { getSession } from "../engines/session-engine";
 import { getDetailedSession } from "../engines/program-engine";
+import { insertSession } from "../lib/db";
+import { useUserId } from "../state/UserContext";
 import { RotatingQuote } from "../components/RotatingQuote";
 import { Spinner } from "../components/Shared";
 import { Player } from "./Player";
@@ -35,11 +37,14 @@ export function Movement({ state, setState }: { state: AppState; setState: SetSt
   const [exp, setExp] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [detailedLoading, setDetailedLoading] = useState(false);
+  const [sessionSource, setSessionSource] = useState<"quick" | "detailed">("quick");
   const { checkIn, currentSession, sessionLoading, week, tone, equipment, injuries, sessionHistory, christianLens, userName, trainingLocation } = state;
+  const userId = useUserId();
 
   const gen = useCallback(() => {
     setState((s) => ({ ...s, sessionLoading: true, currentSession: null }));
     const ses = getSession({ tone, checkIn, week, equipment, injuries, sessionHistory, christianLens, userName });
+    setSessionSource("quick");
     setState((s) => ({ ...s, sessionLoading: false, currentSession: ses }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tone, checkIn, week, equipment, injuries, sessionHistory, christianLens, userName]);
@@ -55,6 +60,7 @@ export function Movement({ state, setState }: { state: AppState; setState: SetSt
       primaryGoal: "Consistency",
       experienceLevel: "Beginner",
     });
+    setSessionSource("detailed");
     setState((s) => ({ ...s, currentSession: ses }));
     setDetailedLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,11 +68,13 @@ export function Movement({ state, setState }: { state: AppState; setState: SetSt
 
   const finishSession = useCallback(() => {
     setState((s) => {
-      const entry = { date: new Date().toDateString(), readiness: s.checkIn ? s.checkIn.readiness : 3, completed: true };
+      const readiness = s.checkIn ? s.checkIn.readiness : 3;
+      const entry = { date: new Date().toDateString(), readiness, completed: true };
+      if (userId && s.currentSession) insertSession(userId, sessionSource, s.currentSession, readiness);
       return { ...s, sessionHistory: s.sessionHistory.concat([entry]), currentSession: null, day: s.day + 1 };
     });
     setPlaying(false);
-  }, [setState]);
+  }, [setState, userId, sessionSource]);
 
   const wantMore = useCallback(() => {
     setState((s) => ({ ...s, sessionLoading: true }));

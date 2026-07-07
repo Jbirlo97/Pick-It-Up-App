@@ -6,6 +6,8 @@ import { recommendRecipes, buildShoppingList, type ScoredRecipe, type ShoppingLi
 import { RotatingQuote } from "../components/RotatingQuote";
 import { RecipeCard } from "../components/RecipeCard";
 import { RecipeDetail } from "../components/RecipeDetail";
+import { insertMeal } from "../lib/db";
+import { useUserId } from "../state/UserContext";
 import type { AppState, Meal, ScreenId, SetState } from "../types";
 
 const GOAL_DISPLAY: Record<string, { label: string; icon: string }> = {
@@ -39,6 +41,7 @@ export function Nourish({ state, setState, setScreen }: { state: AppState; setSt
   const [showList, setShowList] = useState(false);
 
   const meals = state.meals;
+  const userId = useUserId();
   const bodyStats = state.bodyStats;
 
   const pantryItems = pantryText
@@ -87,6 +90,7 @@ export function Nourish({ state, setState, setScreen }: { state: AppState; setSt
     if (!d.name.trim()) return;
     const entry: Meal = { ...d, id: Date.now(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
     setState((s) => ({ ...s, meals: s.meals.concat([entry]) }));
+    if (userId) insertMeal(userId, entry);
     setD({ name: "", kcal: "", protein: "", carbs: "", fat: "", notes: "" });
     setAdding(false);
   };

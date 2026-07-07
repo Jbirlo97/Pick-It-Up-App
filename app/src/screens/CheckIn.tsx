@@ -2,19 +2,23 @@ import { useCallback, useState } from "react";
 import { C } from "../theme";
 import { INJURY_OPTIONS } from "../data/content";
 import { getInsight } from "../engines/session-engine";
+import { upsertTodayCheckIn } from "../lib/db";
+import { useUserId } from "../state/UserContext";
 import { SliderField, ToneToggle, GreenButton } from "../components/Shared";
 import type { AppState, CheckInData, ScreenId, SetState } from "../types";
 
 export function CheckIn({ state, setState, setScreen }: { state: AppState; setState: SetState; setScreen: (s: ScreenId) => void }) {
   const [d, setD] = useState<CheckInData>(state.checkIn || { readiness: 3, sleep: 3, mood: 3, stress: 3 });
   const avg = ((d.readiness + d.sleep + d.mood + (6 - d.stress)) / 4).toFixed(1);
+  const userId = useUserId();
 
   const submit = useCallback(() => {
     const ins = getInsight({ tone: state.tone, checkIn: d, christianLens: state.christianLens, userName: state.userName, sex: state.bodyStats?.sex });
     setState((s) => ({ ...s, checkIn: d, checkInDate: new Date().toDateString(), aiInsight: ins, aiLoading: false }));
+    if (userId) upsertTodayCheckIn(userId, d, ins, state.injuries);
     setScreen("home");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, state.tone, state.christianLens, state.userName]);
+  }, [d, state.tone, state.christianLens, state.userName, state.injuries, userId]);
 
   return (
     <div style={{ padding: "30px 24px 100px" }}>

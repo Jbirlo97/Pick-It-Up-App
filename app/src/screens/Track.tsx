@@ -2,11 +2,14 @@ import { useState } from "react";
 import { C } from "../theme";
 import { RotatingQuote } from "../components/RotatingQuote";
 import { GreenButton } from "../components/Shared";
+import { deleteGoal, insertCraving, insertGoal, insertSleepEntry, updateGoalProgress, upsertSobriety } from "../lib/db";
+import { useUserId } from "../state/UserContext";
 import type { AppState, CravingEntry, Goal, SetState, Sobriety } from "../types";
 
 type Tab = "sleep" | "sobriety" | "mind" | "goals" | "steps";
 
 export function Track({ state, setState }: { state: AppState; setState: SetState }) {
+  const userId = useUserId();
   const [tab, setTab] = useState<Tab>("sleep");
   const [sd, setSd] = useState({ hours: 7, quality: 3 });
   const [sobrietySetup, setSobrietySetup] = useState(false);
@@ -103,6 +106,7 @@ export function Track({ state, setState }: { state: AppState; setState: SetState
                 onClick={() => {
                   const entry = { date: new Date().toDateString(), hours: sd.hours, quality: sd.quality };
                   setState((s) => ({ ...s, sleepLog: s.sleepLog.concat([entry]) }));
+                  if (userId) insertSleepEntry(userId, entry);
                 }}
               />
             </div>
@@ -134,7 +138,13 @@ export function Track({ state, setState }: { state: AppState; setState: SetState
                 <div style={{ fontFamily: "'Georgia',serif", fontSize: 14, color: C.gd, fontStyle: "italic", lineHeight: 1.6, marginBottom: 20, maxWidth: 260, margin: "0 auto 20px" }}>
                   {sobDays === 0 ? "Day one. That's not nothing." : sobDays < 7 ? "The first week is the hardest. You're in it." : sobDays < 30 ? "The trickle is building." : sobDays < 90 ? "A month. This is becoming who you are." : "The proof is in the pattern."}
                 </div>
-                <button onClick={() => setState((s) => ({ ...s, sobriety: null }))} style={{ padding: "7px 18px", borderRadius: 20, border: "1px solid " + C.sl, background: "transparent", color: C.mu, fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}>
+                <button
+                  onClick={() => {
+                    setState((s) => ({ ...s, sobriety: null }));
+                    if (userId) upsertSobriety(userId, null);
+                  }}
+                  style={{ padding: "7px 18px", borderRadius: 20, border: "1px solid " + C.sl, background: "transparent", color: C.mu, fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}
+                >
                   Reset counter
                 </button>
               </div>
@@ -155,7 +165,9 @@ export function Track({ state, setState }: { state: AppState; setState: SetState
                   <button
                     onClick={() => {
                       if (sobD.substance && sobD.startDate) {
-                        setState((s) => ({ ...s, sobriety: { ...sobD, private: true } }));
+                        const next: Sobriety = { ...sobD, private: true };
+                        setState((s) => ({ ...s, sobriety: next }));
+                        if (userId) upsertSobriety(userId, next);
                         setSobrietySetup(false);
                       }
                     }}
@@ -213,6 +225,7 @@ export function Track({ state, setState }: { state: AppState; setState: SetState
                 onClick={() => {
                   const entry: CravingEntry = { id: Date.now(), date: new Date().toDateString(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), intensity: cd.intensity, trigger: cd.trigger, note: cd.note };
                   setState((s) => ({ ...s, cravingLog: (s.cravingLog || []).concat([entry]) }));
+                  if (userId) insertCraving(userId, entry);
                   setCd({ intensity: 3, trigger: "stress", note: "" });
                 }}
               />
@@ -280,8 +293,14 @@ export function Track({ state, setState }: { state: AppState; setState: SetState
                   <button
                     onClick={() => {
                       if (gd.name.trim()) {
-                        const entry: Goal = { ...gd, id: Date.now(), progress: 0 };
+                        const tempId = Date.now();
+                        const entry: Goal = { ...gd, id: tempId, progress: 0 };
                         setState((s) => ({ ...s, goals: s.goals.concat([entry]) }));
+                        if (userId) {
+                          insertGoal(userId, entry).then((realId) => {
+                            if (realId) setState((s) => ({ ...s, goals: s.goals.map((x) => (x.id === tempId ? { ...x, id: realId } : x)) }));
+                          });
+                        }
                         setGd({ name: "", target: "", unit: "" });
                         setAddingG(false);
                       }
@@ -315,17 +334,25 @@ export function Track({ state, setState }: { state: AppState; setState: SetState
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
-                      onClick={() =>
+                      onClick={() => {
+                        const nextProgress = (g.progress || 0) + 1;
                         setState((s) => ({
                           ...s,
-                          goals: s.goals.map((x) => (x.id === g.id ? { ...x, progress: (x.progress || 0) + 1 } : x)),
-                        }))
-                      }
+                          goals: s.goals.map((x) => (x.id === g.id ? { ...x, progress: nextProgress } : x)),
+                        }));
+                        if (userId) updateGoalProgress(g.id, nextProgress);
+                      }}
                       style={{ flex: 1, padding: "7px", borderRadius: 8, background: C.gd, color: C.cr, border: "none", fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}
                     >
                       + Log one
                     </button>
-                    <button onClick={() => setState((s) => ({ ...s, goals: s.goals.filter((x) => x.id !== g.id) }))} style={{ padding: "7px 12px", borderRadius: 8, background: "transparent", color: C.mu, border: "1px solid " + C.sl, fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}>
+                    <button
+                      onClick={() => {
+                        setState((s) => ({ ...s, goals: s.goals.filter((x) => x.id !== g.id) }));
+                        if (userId) deleteGoal(g.id);
+                      }}
+                      style={{ padding: "7px 12px", borderRadius: 8, background: "transparent", color: C.mu, border: "1px solid " + C.sl, fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}
+                    >
                       ✕
                     </button>
                   </div>

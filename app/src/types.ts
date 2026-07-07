@@ -73,7 +73,7 @@ export interface Movement {
 }
 
 export interface Meal {
-  id: number;
+  id: number | string;
   name: string;
   kcal: string;
   protein: string;
@@ -96,7 +96,7 @@ export interface Sobriety {
 }
 
 export interface Goal {
-  id: number;
+  id: number | string;
   name: string;
   target: string;
   unit: string;
@@ -104,7 +104,7 @@ export interface Goal {
 }
 
 export interface CravingEntry {
-  id: number;
+  id: number | string;
   date: string;
   time: string;
   intensity: number;
@@ -113,7 +113,7 @@ export interface CravingEntry {
 }
 
 export interface CommunityPost {
-  id: number;
+  id: number | string;
   user: string;
   day: number;
   pillar: string;

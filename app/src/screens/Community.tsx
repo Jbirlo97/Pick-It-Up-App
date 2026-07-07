@@ -3,39 +3,46 @@ import { C } from "../theme";
 import { PILLARS } from "../data/content";
 import { RotatingQuote } from "../components/RotatingQuote";
 import { PillarBadge } from "../components/Shared";
+import { flagPost, insertCommunityPost, markPostSeen } from "../lib/db";
+import { useUserId } from "../state/UserContext";
 import type { AppState, CommunityPost, SetState } from "../types";
 
 export function Community({ state, setState }: { state: AppState; setState: SetState }) {
+  const userId = useUserId();
   const [layer, setLayer] = useState(1);
   const [sharing, setSharing] = useState(false);
   const [sd, setSd] = useState({ text: "", pillar: "The Trickle" });
   const [bd, setBd] = useState("");
   const { communityPosts, userName, day, buddy } = state;
+  const myMarker = userId || "me";
 
   const GUIDE = ["No unsolicited advice — witness, don't fix", "No performance or comparison", "No promotion or external links", "Be honest about where you actually are", "This is not a crisis service — call 000 or Lifeline 13 11 14 if needed"];
 
-  const see = (id: number) => {
+  const see = (id: number | string) => {
     setState((s) => ({
       ...s,
       communityPosts: s.communityPosts.map((p) => {
         if (p.id !== id) return p;
-        const nextSeen = p.seen.indexOf("me") === -1 ? p.seen.concat(["me"]) : p.seen;
+        const nextSeen = p.seen.indexOf(myMarker) === -1 ? p.seen.concat([myMarker]) : p.seen;
         return { ...p, seen: nextSeen };
       }),
     }));
+    if (userId) markPostSeen(id);
   };
 
-  const flag = (id: number) => {
+  const flag = (id: number | string) => {
     setState((s) => ({
       ...s,
       communityPosts: s.communityPosts.map((p) => (p.id === id ? { ...p, flagged: true } : p)),
     }));
+    if (userId) flagPost(id);
   };
 
   const share = () => {
     if (!sd.text.trim()) return;
     const newPost: CommunityPost = { id: Date.now(), user: (userName || "You").charAt(0) + ".", day, pillar: sd.pillar, text: sd.text, seen: [], flagged: false };
     setState((s) => ({ ...s, communityPosts: [newPost].concat(s.communityPosts) }));
+    if (userId) insertCommunityPost(userId, { user: newPost.user, day: newPost.day, pillar: newPost.pillar, text: newPost.text });
     setSd({ text: "", pillar: "The Trickle" });
     setSharing(false);
   };

@@ -3,6 +3,7 @@ import { C } from "../theme";
 import { INJURY_OPTIONS } from "../data/content";
 import { ProgressCalendar } from "../components/ProgressCalendar";
 import { ToneToggle } from "../components/Shared";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { Paywall } from "./Paywall";
 import type { AppState, BodyStats, SetState, TrainingLocation } from "../types";
 
@@ -272,6 +273,14 @@ export function Profile({ state, setState }: { state: AppState; setState: SetSta
             <button style={{ padding: "4px 10px", borderRadius: 12, background: C.gd, color: C.cr, border: "none", fontFamily: "Inter,sans-serif", fontSize: 11, cursor: "pointer" }}>Copy</button>
           </div>
         </div>
+
+        {isSupabaseConfigured ? (
+          <div style={{ marginBottom: 18, paddingBottom: 18, borderBottom: "1px solid " + C.sl }}>
+            <button onClick={() => supabase?.auth.signOut()} style={{ width: "100%", padding: "11px", borderRadius: 10, background: "transparent", color: C.rd, border: "1px solid rgba(192,57,43,0.3)", fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              Sign out
+            </button>
+          </div>
+        ) : null}
 
         <div style={{ padding: "14px", borderRadius: 12, background: C.cr, border: "1px solid " + C.sl }}>
           <div style={{ fontFamily: "'Georgia',serif", fontSize: 13, color: C.gd, fontStyle: "italic", lineHeight: 1.6 }}>"Muscle is built in the gym. Strength begins in the mind."</div>
