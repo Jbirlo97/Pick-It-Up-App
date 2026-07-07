@@ -290,6 +290,28 @@ export async function insertCraving(userId: string, entry: Omit<CravingEntry, "i
   if (error) console.error("insertCraving failed", error);
 }
 
+export async function fetchSavedRecipeIds(userId: string): Promise<string[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from("saved_recipes").select("recipe_id").eq("user_id", userId);
+  if (error) {
+    console.error("fetchSavedRecipeIds failed", error);
+    return [];
+  }
+  return (data || []).map((r) => r.recipe_id as string);
+}
+
+export async function saveRecipe(userId: string, recipeId: string): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from("saved_recipes").upsert({ user_id: userId, recipe_id: recipeId }, { onConflict: "user_id,recipe_id" });
+  if (error) console.error("saveRecipe failed", error);
+}
+
+export async function unsaveRecipe(userId: string, recipeId: string): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from("saved_recipes").delete().eq("user_id", userId).eq("recipe_id", recipeId);
+  if (error) console.error("unsaveRecipe failed", error);
+}
+
 export async function fetchCommunityPosts(): Promise<CommunityPost[]> {
   if (!supabase) return [];
   const { data, error } = await supabase.from("community_posts").select("*").order("created_at", { ascending: false });
@@ -324,7 +346,7 @@ export async function hydrateStateFromSupabase(userId: string): Promise<Partial<
   const profile = await fetchProfile(userId);
   if (!profile) return null;
 
-  const [todayCheckIn, sessionHistory, meals, sleepLog, sobriety, goals, cravingLog, communityPosts] = await Promise.all([
+  const [todayCheckIn, sessionHistory, meals, sleepLog, sobriety, goals, cravingLog, communityPosts, savedRecipeIds] = await Promise.all([
     fetchCheckInForToday(userId),
     fetchSessionHistory(userId),
     fetchMeals(userId),
@@ -333,6 +355,7 @@ export async function hydrateStateFromSupabase(userId: string): Promise<Partial<
     fetchGoals(userId),
     fetchCravingLog(userId),
     fetchCommunityPosts(),
+    fetchSavedRecipeIds(userId),
   ]);
 
   return {
@@ -347,5 +370,6 @@ export async function hydrateStateFromSupabase(userId: string): Promise<Partial<
     goals,
     cravingLog,
     communityPosts: communityPosts.length ? communityPosts : undefined,
+    savedRecipeIds,
   };
 }

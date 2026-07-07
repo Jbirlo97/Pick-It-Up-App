@@ -43,4 +43,5 @@ export const DEFAULT: AppState = {
   email: "",
   emailCaptured: false,
   emailPromptDismissed: false,
+  savedRecipeIds: [],
 };

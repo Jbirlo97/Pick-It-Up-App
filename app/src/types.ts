@@ -176,6 +176,7 @@ export interface AppState {
   email: string;
   emailCaptured: boolean;
   emailPromptDismissed: boolean;
+  savedRecipeIds: string[];
 }
 
 export type ScreenId =

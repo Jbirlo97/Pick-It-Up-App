@@ -2,11 +2,12 @@ import { useState } from "react";
 import { C } from "../theme";
 import { FOODS } from "../data/foods-quicklog";
 import { GOALS, SITUATION_FILTERS } from "../data/recipe-meta";
-import { recommendRecipes, buildShoppingList, type ScoredRecipe, type ShoppingListGroup } from "../engines/recipe-engine";
+import { RECIPES } from "../data/recipes";
+import { recommendRecipes, buildShoppingList, badgesForRecipe, type ScoredRecipe, type ShoppingListGroup } from "../engines/recipe-engine";
 import { RotatingQuote } from "../components/RotatingQuote";
 import { RecipeCard } from "../components/RecipeCard";
 import { RecipeDetail } from "../components/RecipeDetail";
-import { insertMeal } from "../lib/db";
+import { insertMeal, saveRecipe, unsaveRecipe } from "../lib/db";
 import { useUserId } from "../state/UserContext";
 import { calculateBmi, calculateMacros, calculateTdee, calculateWhtr } from "../lib/healthCalcs";
 import type { AppState, Meal, ScreenId, SetState } from "../types";
@@ -40,17 +41,35 @@ export function Nourish({ state, setState, setScreen }: { state: AppState; setSt
   const [openRecipe, setOpenRecipe] = useState<ScoredRecipe | null>(null);
   const [shoppingList, setShoppingList] = useState<ScoredRecipe[]>([]);
   const [showList, setShowList] = useState(false);
+  const [viewingSaved, setViewingSaved] = useState(false);
 
   const meals = state.meals;
   const userId = useUserId();
   const bodyStats = state.bodyStats;
+  const savedRecipeIds = state.savedRecipeIds || [];
 
   const pantryItems = pantryText
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
   const discoverResults = discoverGoal ? recommendRecipes({ goal: discoverGoal, situation, diet, pantryItems, count: 6 }) : [];
+  const savedRecipes: ScoredRecipe[] = savedRecipeIds
+    .map((id) => RECIPES.find((r) => r.id === id))
+    .filter((r): r is (typeof RECIPES)[number] => !!r)
+    .map((r) => ({ ...r, _score: 0, _badges: badgesForRecipe(r), _pantryHits: 0 }));
   const groupedList: ShoppingListGroup[] = shoppingList.length ? buildShoppingList(shoppingList) : [];
+
+  const toggleSaveRecipe = (recipe: ScoredRecipe) => {
+    const isSaved = savedRecipeIds.includes(recipe.id);
+    setState((s) => ({
+      ...s,
+      savedRecipeIds: isSaved ? s.savedRecipeIds.filter((id) => id !== recipe.id) : s.savedRecipeIds.concat([recipe.id]),
+    }));
+    if (userId) {
+      if (isSaved) unsaveRecipe(userId, recipe.id);
+      else saveRecipe(userId, recipe.id);
+    }
+  };
 
   const addToList = (recipe: ScoredRecipe) => {
     if (!shoppingList.find((r) => r.id === recipe.id)) setShoppingList([...shoppingList, recipe]);
@@ -231,47 +250,65 @@ export function Nourish({ state, setState, setScreen }: { state: AppState; setSt
 
         {tab === "discover" ? (
           <div>
-            <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.mu, lineHeight: 1.5, marginBottom: 14 }}>Tell us the goal and we'll find meals that fit — not the whole library, just what makes sense today.</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-              {GOALS.map((g) => {
-                const display = GOAL_DISPLAY[g.name] || { label: g.name, icon: "◎" };
-                const active = discoverGoal === g.name;
-                return (
-                  <button key={g.name} onClick={() => setDiscoverGoal(g.name)} style={{ background: active ? "rgba(200,169,106,0.15)" : C.wh, border: "1px solid " + (active ? C.go : C.sl), borderRadius: 14, padding: 14, textAlign: "left", cursor: "pointer" }}>
-                    <div style={{ fontSize: 18, color: C.go, marginBottom: 4 }}>{display.icon}</div>
-                    <div style={{ fontFamily: "'Georgia',serif", fontSize: 13, color: active ? C.go : C.gd }}>{display.label}</div>
-                  </button>
-                );
-              })}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+              <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.mu, lineHeight: 1.5 }}>{viewingSaved ? "Recipes you've saved." : "Tell us the goal and we'll find meals that fit — not the whole library, just what makes sense today."}</div>
+              <button onClick={() => setViewingSaved(!viewingSaved)} style={{ flexShrink: 0, padding: "6px 12px", borderRadius: 16, border: "1px solid " + (viewingSaved ? C.go : C.sl), background: viewingSaved ? "rgba(200,169,106,0.15)" : "transparent", color: viewingSaved ? C.go : C.mu, fontFamily: "Inter,sans-serif", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                {viewingSaved ? "← Discover" : `★ Saved (${savedRecipeIds.length})`}
+              </button>
             </div>
-            {discoverGoal ? (
+            {viewingSaved ? (
+              savedRecipes.length > 0 ? (
+                savedRecipes.map((r) => <RecipeCard key={r.id} recipe={r} onOpen={setOpenRecipe} saved onToggleSave={toggleSaveRecipe} />)
+              ) : (
+                <div style={{ textAlign: "center", padding: "32px 0" }}>
+                  <div style={{ fontFamily: "'Georgia',serif", fontSize: 15, color: C.gd, marginBottom: 6 }}>Nothing saved yet.</div>
+                  <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.mu }}>Tap the star on any recipe to keep it here.</div>
+                </div>
+              )
+            ) : (
               <>
-                <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, marginBottom: 6 }}>What's today look like? (optional)</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                  {Object.entries(SITUATION_FILTERS).map(([id, f]) => (
-                    <button key={id} onClick={() => setSituation(id === situation ? null : id)} style={{ padding: "6px 12px", borderRadius: 16, border: "1px solid " + (situation === id ? C.go : C.sl), background: situation === id ? "rgba(200,169,106,0.1)" : "transparent", color: situation === id ? C.go : C.mu, fontFamily: "Inter,sans-serif", fontSize: 11, cursor: "pointer" }}>
-                      {f.label}
-                    </button>
-                  ))}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+                  {GOALS.map((g) => {
+                    const display = GOAL_DISPLAY[g.name] || { label: g.name, icon: "◎" };
+                    const active = discoverGoal === g.name;
+                    return (
+                      <button key={g.name} onClick={() => setDiscoverGoal(g.name)} style={{ background: active ? "rgba(200,169,106,0.15)" : C.wh, border: "1px solid " + (active ? C.go : C.sl), borderRadius: 14, padding: 14, textAlign: "left", cursor: "pointer" }}>
+                        <div style={{ fontSize: 18, color: C.go, marginBottom: 4 }}>{display.icon}</div>
+                        <div style={{ fontFamily: "'Georgia',serif", fontSize: 13, color: active ? C.go : C.gd }}>{display.label}</div>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, marginBottom: 6 }}>Dietary preference (optional)</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-                  {DIETS.map((dt) => (
-                    <button key={dt} onClick={() => setDiet(dt === diet ? null : dt)} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (diet === dt ? C.gd : C.sl), background: diet === dt ? C.gd : "transparent", color: diet === dt ? C.cr : C.mu, fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}>
-                      {dt}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, marginBottom: 6 }}>What's already in your kitchen? (optional)</div>
-                <input value={pantryText} onChange={(e) => setPantryText(e.target.value)} placeholder="e.g. chicken, rice, eggs" style={{ width: "100%", padding: "9px", borderRadius: 7, border: "1px solid " + C.sl, fontFamily: "Inter,sans-serif", fontSize: 13, boxSizing: "border-box", outline: "none", marginBottom: 16 }} />
-                <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.mu, marginBottom: 12 }}>
-                  {discoverResults.length} meals that fit{pantryItems.length ? " — prioritising what you have" : ""}
-                </div>
-                {discoverResults.map((r) => (
-                  <RecipeCard key={r.id} recipe={r} onOpen={setOpenRecipe} />
-                ))}
+                {discoverGoal ? (
+                  <>
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, marginBottom: 6 }}>What's today look like? (optional)</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                      {Object.entries(SITUATION_FILTERS).map(([id, f]) => (
+                        <button key={id} onClick={() => setSituation(id === situation ? null : id)} style={{ padding: "6px 12px", borderRadius: 16, border: "1px solid " + (situation === id ? C.go : C.sl), background: situation === id ? "rgba(200,169,106,0.1)" : "transparent", color: situation === id ? C.go : C.mu, fontFamily: "Inter,sans-serif", fontSize: 11, cursor: "pointer" }}>
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, marginBottom: 6 }}>Dietary preference (optional)</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                      {DIETS.map((dt) => (
+                        <button key={dt} onClick={() => setDiet(dt === diet ? null : dt)} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (diet === dt ? C.gd : C.sl), background: diet === dt ? C.gd : "transparent", color: diet === dt ? C.cr : C.mu, fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}>
+                          {dt}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, marginBottom: 6 }}>What's already in your kitchen? (optional)</div>
+                    <input value={pantryText} onChange={(e) => setPantryText(e.target.value)} placeholder="e.g. chicken, rice, eggs" style={{ width: "100%", padding: "9px", borderRadius: 7, border: "1px solid " + C.sl, fontFamily: "Inter,sans-serif", fontSize: 13, boxSizing: "border-box", outline: "none", marginBottom: 16 }} />
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.mu, marginBottom: 12 }}>
+                      {discoverResults.length} meals that fit{pantryItems.length ? " — prioritising what you have" : ""}
+                    </div>
+                    {discoverResults.map((r) => (
+                      <RecipeCard key={r.id} recipe={r} onOpen={setOpenRecipe} saved={savedRecipeIds.includes(r.id)} onToggleSave={toggleSaveRecipe} />
+                    ))}
+                  </>
+                ) : null}
               </>
-            ) : null}
+            )}
             {shoppingList.length > 0 ? (
               <div onClick={() => setShowList(!showList)} style={{ position: "fixed", bottom: 230, left: "50%", transform: "translateX(-50%)", background: C.gd, color: C.cr, padding: "12px 20px", borderRadius: 30, fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)", cursor: "pointer", zIndex: 90 }}>
                 {shoppingList.length} item{shoppingList.length > 1 ? "s" : ""} on your list — tap to view
@@ -299,7 +336,7 @@ export function Nourish({ state, setState, setScreen }: { state: AppState; setSt
                 </div>
               </div>
             ) : null}
-            {openRecipe ? <RecipeDetail recipe={openRecipe} onClose={() => setOpenRecipe(null)} onAddToList={addToList} /> : null}
+            {openRecipe ? <RecipeDetail recipe={openRecipe} onClose={() => setOpenRecipe(null)} onAddToList={addToList} saved={savedRecipeIds.includes(openRecipe.id)} onToggleSave={toggleSaveRecipe} /> : null}
           </div>
         ) : null}
 

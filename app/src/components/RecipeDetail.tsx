@@ -2,7 +2,19 @@ import { C } from "../theme";
 import { BadgePill } from "./RecipeCard";
 import type { ScoredRecipe } from "../engines/recipe-engine";
 
-export function RecipeDetail({ recipe, onClose, onAddToList }: { recipe: ScoredRecipe; onClose: () => void; onAddToList: (r: ScoredRecipe) => void }) {
+export function RecipeDetail({
+  recipe,
+  onClose,
+  onAddToList,
+  saved,
+  onToggleSave,
+}: {
+  recipe: ScoredRecipe;
+  onClose: () => void;
+  onAddToList: (r: ScoredRecipe) => void;
+  saved?: boolean;
+  onToggleSave?: (r: ScoredRecipe) => void;
+}) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(26,74,46,0.5)", display: "flex", alignItems: "flex-end", zIndex: 200 }} onClick={onClose}>
       <div style={{ background: C.cr, width: "100%", maxWidth: 420, margin: "0 auto", maxHeight: "85vh", overflowY: "auto", borderRadius: "20px 20px 0 0", padding: 24 }} onClick={(e) => e.stopPropagation()}>
@@ -11,7 +23,14 @@ export function RecipeDetail({ recipe, onClose, onAddToList }: { recipe: ScoredR
             ✕
           </button>
         </div>
-        <div style={{ fontFamily: "'Georgia',serif", fontSize: 24, color: C.gd, marginBottom: 6 }}>{recipe.name}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+          <div style={{ fontFamily: "'Georgia',serif", fontSize: 24, color: C.gd }}>{recipe.name}</div>
+          {onToggleSave ? (
+            <button onClick={() => onToggleSave(recipe)} aria-label={saved ? "Remove from saved recipes" : "Save recipe"} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 24, color: saved ? C.go : C.sl, lineHeight: 1, flexShrink: 0 }}>
+              {saved ? "★" : "☆"}
+            </button>
+          ) : null}
+        </div>
         <div style={{ display: "flex", flexWrap: "wrap", marginBottom: 14 }}>
           {recipe._badges.map((b) => (
             <BadgePill key={b} text={b} />

@@ -9,12 +9,26 @@ export function BadgePill({ text }: { text: string }) {
   );
 }
 
-export function RecipeCard({ recipe, onOpen }: { recipe: ScoredRecipe; onOpen: (r: ScoredRecipe) => void }) {
+export function RecipeCard({ recipe, onOpen, saved, onToggleSave }: { recipe: ScoredRecipe; onOpen: (r: ScoredRecipe) => void; saved?: boolean; onToggleSave?: (r: ScoredRecipe) => void }) {
   return (
-    <div onClick={() => onOpen(recipe)} style={{ background: C.wh, border: "1px solid " + C.sl, borderRadius: 14, padding: 16, marginBottom: 12, cursor: "pointer" }}>
+    <div onClick={() => onOpen(recipe)} style={{ background: C.wh, border: "1px solid " + C.sl, borderRadius: 14, padding: 16, marginBottom: 12, cursor: "pointer", position: "relative" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-        <div style={{ fontFamily: "'Georgia',serif", fontSize: 16, color: C.gd, maxWidth: 240 }}>{recipe.name}</div>
-        <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, whiteSpace: "nowrap" }}>{recipe.totalMin} min</div>
+        <div style={{ fontFamily: "'Georgia',serif", fontSize: 16, color: C.gd, maxWidth: 200 }}>{recipe.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, whiteSpace: "nowrap" }}>{recipe.totalMin} min</div>
+          {onToggleSave ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSave(recipe);
+              }}
+              aria-label={saved ? "Remove from saved recipes" : "Save recipe"}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 18, color: saved ? C.go : C.sl, lineHeight: 1 }}
+            >
+              {saved ? "★" : "☆"}
+            </button>
+          ) : null}
+        </div>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", marginBottom: 8 }}>
         {recipe._badges.map((b) => (
