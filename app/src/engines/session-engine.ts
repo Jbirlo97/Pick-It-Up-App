@@ -1,5 +1,6 @@
 import { MDB, MOVS } from "../data/exercises-legacy";
 import { CONSISTENCY_LINES, PILLARS, QUOTES } from "../data/content";
+import { mapEquipmentToEngineAccess } from "../lib/equipmentAccess";
 import type {
   AiInsight,
   CheckInData,
@@ -11,6 +12,7 @@ import type {
   SessionHistoryEntry,
   SessionExercise,
   Tone,
+  TrainingLocation,
   WeeklyDigest,
 } from "../types";
 
@@ -73,7 +75,7 @@ interface DeterministicSessionContext {
   readiness: number;
   injuryFlags?: string[];
   sessionHistory?: SessionHistoryEntry[];
-  trainingLocation?: string;
+  trainingLocation?: TrainingLocation;
   equipment?: string[];
 }
 
@@ -81,12 +83,19 @@ interface DeterministicSessionContext {
 // removed from the selection pool, not just listed. The flagged list is
 // returned so the UI can tell the user what was worked around and why.
 // Never let a flagged movement be served; never make the exclusion silent.
+//
+// Equipment filtering: a bodyweight-only user must never be served a
+// movement requiring equipment they don't have — this is a functional
+// safety concern (attempting an exercise without the right equipment),
+// not just a UX nicety, so it's handled with the same rigor as the
+// contraindication filter above, not layered on as an afterthought.
 export function generateDeterministicSession(context: DeterministicSessionContext): DetailedSession {
   const readiness = context.readiness || 3;
   const injuryFlags = context.injuryFlags || [];
   const trend = detectReadinessTrendDeterministic(context.sessionHistory);
+  const equipmentAccess = mapEquipmentToEngineAccess(context.trainingLocation || "bodyweight", context.equipment || []);
 
-  let pool = MOVS.slice();
+  let pool = MOVS.filter((m) => m.equipment === "Bodyweight" || equipmentAccess.includes(m.equipment));
   if (readiness <= 2) pool = pool.filter((m) => m.tier === 1);
   else if (readiness === 3) pool = pool.filter((m) => m.tier <= 2);
 
@@ -238,6 +247,7 @@ interface GetSessionArgs {
   checkIn: CheckInData | null;
   week: number;
   equipment: string[];
+  trainingLocation?: TrainingLocation;
   injuries: string[];
   sessionHistory: SessionHistoryEntry[];
   christianLens: boolean;
@@ -253,7 +263,7 @@ export function getSession(args: GetSessionArgs): PlayerSession {
     readiness,
     injuryFlags: args.injuries || [],
     sessionHistory: args.sessionHistory || [],
-    trainingLocation: "bodyweight",
+    trainingLocation: args.trainingLocation || "bodyweight",
     equipment: args.equipment || [],
   });
 

@@ -84,6 +84,19 @@ describe("getDetailedSession", () => {
       expect(e.movement.contra.some((c) => c.toLowerCase().includes("knee"))).toBe(false);
     });
   });
+
+  it("respects equipmentAccess for the newly added equipment-tagged exercises", () => {
+    const bodyweightOnly = Array.from({ length: 20 }, () => getDetailedSession({ readiness: 5, stress: 3, equipmentAccess: ["None"], primaryGoal: "Strength", experienceLevel: "Advanced" }));
+    bodyweightOnly.forEach((session) => {
+      session.exercises.forEach((e) => {
+        expect(e.movement.equipment).toBe("Bodyweight");
+      });
+    });
+
+    const withBarbellAndRack = Array.from({ length: 20 }, () => getDetailedSession({ readiness: 5, stress: 3, equipmentAccess: ["Barbell", "Squat rack", "Bench"], primaryGoal: "Strength", experienceLevel: "Advanced" }));
+    const sawBarbellMovement = withBarbellAndRack.some((session) => session.exercises.some((e) => ["Barbell", "Squat rack", "Bench"].includes(e.movement.equipment)));
+    expect(sawBarbellMovement).toBe(true);
+  });
 });
 
 describe("scoreExercise", () => {

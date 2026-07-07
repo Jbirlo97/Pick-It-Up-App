@@ -70,6 +70,10 @@ export interface Movement {
   regression: string;
   progression: string;
   contra: string[];
+  // "Bodyweight" for the original library; a specific piece of equipment
+  // (e.g. "Dumbbells", "Barbell", "Squat rack") for anything requiring it —
+  // see docs/integration-spec.md Section 4's equipment mapping.
+  equipment: string;
 }
 
 export interface Meal {

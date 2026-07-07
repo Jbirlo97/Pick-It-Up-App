@@ -5,32 +5,11 @@ import { getSession } from "../engines/session-engine";
 import { getDetailedSession } from "../engines/program-engine";
 import { insertSession } from "../lib/db";
 import { useUserId } from "../state/UserContext";
+import { mapEquipmentToEngineAccess } from "../lib/equipmentAccess";
 import { RotatingQuote } from "../components/RotatingQuote";
 import { Spinner } from "../components/Shared";
 import { Player } from "./Player";
 import type { AppState, Movement as MovementType, SetState } from "../types";
-
-// Equipment mapping per docs/integration-spec.md Section 4: the live app's
-// granular equipment list -> the program engine's equipmentAccess options.
-function mapEquipmentToEngineAccess(trainingLocation: AppState["trainingLocation"], equipment: string[]): string[] {
-  if (trainingLocation === "bodyweight") return ["None"];
-  if (trainingLocation === "commercial") return ["Commercial gym"];
-  const map: Record<string, string> = {
-    dumbbells: "Dumbbells",
-    barbell: "Barbell",
-    bench: "Bench",
-    "pull-up bar": "Pull-up bar",
-    "resistance bands": "Bands",
-    kettlebell: "Kettlebell",
-    "cable machine": "Cable machine",
-    "squat rack": "Squat rack",
-  };
-  const access = ["Home gym"];
-  equipment.forEach((e) => {
-    if (map[e]) access.push(map[e]);
-  });
-  return access;
-}
 
 export function Movement({ state, setState }: { state: AppState; setState: SetState }) {
   const [open, setOpen] = useState(false);
@@ -43,11 +22,11 @@ export function Movement({ state, setState }: { state: AppState; setState: SetSt
 
   const gen = useCallback(() => {
     setState((s) => ({ ...s, sessionLoading: true, currentSession: null }));
-    const ses = getSession({ tone, checkIn, week, equipment, injuries, sessionHistory, christianLens, userName });
+    const ses = getSession({ tone, checkIn, week, equipment, trainingLocation, injuries, sessionHistory, christianLens, userName });
     setSessionSource("quick");
     setState((s) => ({ ...s, sessionLoading: false, currentSession: ses }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tone, checkIn, week, equipment, injuries, sessionHistory, christianLens, userName]);
+  }, [tone, checkIn, week, equipment, trainingLocation, injuries, sessionHistory, christianLens, userName]);
 
   const genDetailed = useCallback(() => {
     setDetailedLoading(true);
@@ -79,10 +58,10 @@ export function Movement({ state, setState }: { state: AppState; setState: SetSt
   const wantMore = useCallback(() => {
     setState((s) => ({ ...s, sessionLoading: true }));
     const boostedCheckIn = checkIn ? { ...checkIn, readiness: 3 } : { readiness: 3, sleep: 3, mood: 3, stress: 3 };
-    const ses = getSession({ tone, checkIn: boostedCheckIn, week, equipment, injuries, sessionHistory, christianLens, userName });
+    const ses = getSession({ tone, checkIn: boostedCheckIn, week, equipment, trainingLocation, injuries, sessionHistory, christianLens, userName });
     setState((s) => ({ ...s, sessionLoading: false, currentSession: ses }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tone, checkIn, week, equipment, injuries, sessionHistory, christianLens, userName]);
+  }, [tone, checkIn, week, equipment, trainingLocation, injuries, sessionHistory, christianLens, userName]);
 
   if (playing && currentSession) {
     return <Player key={currentSession.sessionTitle + currentSession.exercises.length} session={currentSession} onComplete={finishSession} onExit={() => setPlaying(false)} state={state} setState={setState} onWantMore={wantMore} />;

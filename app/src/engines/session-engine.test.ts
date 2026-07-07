@@ -80,6 +80,38 @@ describe("generateDeterministicSession — safety (non-negotiable)", () => {
   });
 });
 
+describe("generateDeterministicSession — equipment filtering", () => {
+  // A bodyweight-only user must never be served a movement requiring
+  // equipment they don't have — a functional safety concern (attempting an
+  // exercise without the right equipment), not just a UX nicety.
+  it("never serves an equipment-requiring movement to a bodyweight-only user, across 100 randomized runs", () => {
+    for (let i = 0; i < 100; i++) {
+      const readiness = 1 + Math.floor(Math.random() * 5);
+      const result = generateDeterministicSession({ readiness, injuryFlags: [], sessionHistory: [], trainingLocation: "bodyweight", equipment: ["bodyweight"] });
+      result.main.forEach((exercise) => {
+        const mov = MOVS.find((m) => m.name === exercise.name)!;
+        expect(mov.equipment, `"${exercise.name}" (equipment: ${mov.equipment}) was served to a bodyweight-only user`).toBe("Bodyweight");
+      });
+    }
+  });
+
+  it("serves dumbbell movements once the user has dumbbells at home", () => {
+    const results = Array.from({ length: 30 }, () => generateDeterministicSession({ readiness: 5, injuryFlags: [], sessionHistory: [], trainingLocation: "home", equipment: ["dumbbells"] }));
+    const sawDumbbellMovement = results.some((r) => r.main.some((e) => MOVS.find((m) => m.name === e.name)?.equipment === "Dumbbells"));
+    expect(sawDumbbellMovement).toBe(true);
+  });
+
+  it("gives a commercial-gym user access to every equipment tag, not just movements literally tagged 'Commercial gym'", () => {
+    // Regression test: an earlier version of this mapping short-circuited
+    // commercial-gym users to equipmentAccess: ["Commercial gym"], which
+    // matched nothing (no movement is tagged that) and meant they'd never
+    // see any of the new equipment-based movements at all.
+    const results = Array.from({ length: 40 }, () => generateDeterministicSession({ readiness: 5, injuryFlags: [], sessionHistory: [], trainingLocation: "commercial", equipment: [] }));
+    const equipmentSeen = new Set(results.flatMap((r) => r.main.map((e) => MOVS.find((m) => m.name === e.name)?.equipment)));
+    expect(equipmentSeen.size).toBeGreaterThan(1); // sees more than just Bodyweight
+  });
+});
+
 describe("detectReadinessTrendDeterministic", () => {
   it("returns 'unknown' with fewer than 2 data points", () => {
     expect(detectReadinessTrendDeterministic([])).toBe("unknown");

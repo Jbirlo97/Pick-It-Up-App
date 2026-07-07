@@ -245,6 +245,7 @@ function exerciseV2ToMovement(ex: ExerciseV2): Movement {
     regression: ex.regression,
     progression: ex.progression,
     contra: ex.contraindications,
+    equipment: ex.equipment,
   };
 }
 
@@ -262,7 +263,7 @@ export function getDetailedSession(context: ProgramContext): PlayerSession {
     const full = EXERCISES.find((e) => e.exercise_id === p.exercise_id);
     const movement = full
       ? exerciseV2ToMovement(full)
-      : { name: p.name, tier: 1 as const, tags: [], muscles: "", primary: [], cues: [p.coach_cue], errors: [], regression: p.makeEasier, progression: p.swapOption, contra: [] };
+      : { name: p.name, tier: 1 as const, tags: [], muscles: "", primary: [], cues: [p.coach_cue], errors: [], regression: p.makeEasier, progression: p.swapOption, contra: [], equipment: "Bodyweight" };
     return {
       movementKey: p.exercise_id,
       movement,
