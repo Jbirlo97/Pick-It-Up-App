@@ -26,7 +26,7 @@ describe("generateProgram — safety (deliberate deviation from the reference en
     return words[words.length - 2] || c;
   });
 
-  it("never serves a flagged exercise in warmup/main/regulation, across 200 randomized runs", () => {
+  it("never serves a flagged exercise in warmup/main/cooldown, across 200 randomized runs", () => {
     for (let i = 0; i < 200; i++) {
       const readiness = 1 + Math.floor(Math.random() * 5);
       const stress = 1 + Math.floor(Math.random() * 5);
@@ -42,7 +42,7 @@ describe("generateProgram — safety (deliberate deviation from the reference en
         experienceLevel: "Beginner",
       });
 
-      const served = [...program.warmup, ...program.main, ...program.regulation];
+      const served = [...program.warmup, ...program.main, ...program.cooldown];
       served.forEach((prescription) => {
         const full = EXERCISES.find((e) => e.exercise_id === prescription.exercise_id)!;
         const matches = full.contraindications.filter((c) => injuryFlags.some((flag) => c.toLowerCase().includes(flag.toLowerCase())));
@@ -54,17 +54,20 @@ describe("generateProgram — safety (deliberate deviation from the reference en
   it("reports flagged exercises for informational display, but excludes them from the session", () => {
     const program = generateProgram({ readiness: 3, stress: 3, injuryFlags: ["knee"], equipmentAccess: ["None"], primaryGoal: "Consistency", experienceLevel: "Beginner" });
     expect(program.flaggedExercises.length).toBeGreaterThan(0);
-    const servedIds = [...program.warmup, ...program.main, ...program.regulation].map((p) => p.exercise_id);
+    const servedIds = [...program.warmup, ...program.main, ...program.cooldown].map((p) => p.exercise_id);
     program.flaggedExercises.forEach((f) => {
       expect(servedIds).not.toContain(f.exercise.exercise_id);
     });
   });
 
-  it("adds a regulation finisher only when stress is logged high", () => {
+  // Per docs/session-structure-spec.md §1: the cool-down now always runs
+  // (it's not gated on stress) — the old "only when stress is high" rule
+  // becomes a bonus regulation exercise stacked on top of the base cool-down.
+  it("always includes a cool-down, and adds a bonus regulation exercise when stress is logged high", () => {
     const lowStress = generateProgram({ readiness: 3, stress: 2, equipmentAccess: ["None"] });
     const highStress = generateProgram({ readiness: 3, stress: 5, equipmentAccess: ["None"] });
-    expect(lowStress.regulation.length).toBe(0);
-    expect(highStress.regulation.length).toBeGreaterThan(0);
+    expect(lowStress.cooldown.length).toBeGreaterThan(0);
+    expect(highStress.cooldown.length).toBeGreaterThan(lowStress.cooldown.length);
   });
 });
 
@@ -83,6 +86,14 @@ describe("getDetailedSession", () => {
     session.exercises.forEach((e) => {
       expect(e.movement.contra.some((c) => c.toLowerCase().includes("knee"))).toBe(false);
     });
+  });
+
+  it("always closes the cool-down with a Regulate breath practice", () => {
+    const session = getDetailedSession({ readiness: 3, stress: 3, equipmentAccess: ["None"], primaryGoal: "Consistency", experienceLevel: "Beginner" });
+    const cooldown = session.phases.cooldown;
+    expect(cooldown.length).toBeGreaterThan(0);
+    expect(cooldown[cooldown.length - 1].movement.name).toBe("Extended Exhale");
+    expect(session.exercises.length).toBe(session.phases.warmup.length + session.phases.main.length + session.phases.cooldown.length);
   });
 
   it("respects equipmentAccess for the newly added equipment-tagged exercises", () => {

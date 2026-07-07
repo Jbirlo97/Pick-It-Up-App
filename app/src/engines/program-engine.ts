@@ -1,4 +1,5 @@
 import { EXERCISES, type ExerciseV2 } from "../data/exercises-v2";
+import { getDefaultCooldownPractice, regulationPracticeToMovement } from "../lib/regulationAdapter";
 import type { Movement, PlayerSession, ReadinessTrend, SessionExercise, SessionHistoryEntry } from "../types";
 
 /**
@@ -190,11 +191,42 @@ export interface FlaggedExerciseV2 {
 export interface Program {
   warmup: ProgramPrescription[];
   main: ProgramPrescription[];
-  regulation: ProgramPrescription[];
+  cooldown: ProgramPrescription[];
   flaggedExercises: FlaggedExerciseV2[];
   readiness: number;
   trend: ReadinessTrend;
 }
+
+// Body-region tags parsed from `subcategory` (e.g. "mobility, lower") — used
+// to match warm-up/cool-down mobility picks to whatever the generated main
+// session actually trains (docs/session-structure-spec.md §1).
+const BODY_REGION_TAGS = ["lower", "upper", "core", "full body", "back"];
+
+function subcategoryTags(ex: ExerciseV2): string[] {
+  return ex.subcategory.split(",").map((s) => s.trim());
+}
+
+function dominantBodyRegion(exercises: ExerciseV2[]): string | null {
+  const counts: Record<string, number> = {};
+  exercises.forEach((ex) => subcategoryTags(ex).forEach((t) => { if (BODY_REGION_TAGS.includes(t)) counts[t] = (counts[t] || 0) + 1; }));
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return ranked.length ? ranked[0][0] : null;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  return arr.slice().sort(() => Math.random() - 0.5);
+}
+
+// Curated bodyweight "raise" candidates for the warm-up — same narrow,
+// hand-picked set as the Quick Session engine (session-engine.ts), not a
+// broad tag filter.
+const RAISE_IDS = ["EX_JUMP_ROPE", "EX_MOUNTAIN_CLIMBER"];
+
+// Excluded from the mobility/stretch pool: it's a breathing exercise, and
+// the cool-down already always closes with one (the Regulate practice in
+// getDetailedSession) — including both would read as a redundant double
+// breathing beat.
+const MOBILITY_POOL_EXCLUDE_IDS = ["EX_BREATH_WORK"];
 
 export function generateProgram(context: ProgramContext): Program {
   const { readiness = 3, stress = 3, injuryFlags = [] } = context;
@@ -206,9 +238,10 @@ export function generateProgram(context: ProgramContext): Program {
   // SAFETY: exclude contraindicated exercises from the pool entirely (see
   // module header note) rather than scoring and flag-and-confirming them.
   const flaggedExercises: FlaggedExerciseV2[] = [];
+  const flaggedSeen = new Set<string>();
   equipmentFiltered.forEach((ex) => {
     const contra = checkContraindications(ex, injuryFlags);
-    if (contra.blocked) flaggedExercises.push({ exercise: ex, matchedInjuries: contra.matches });
+    if (contra.blocked && !flaggedSeen.has(ex.exercise_id)) { flaggedSeen.add(ex.exercise_id); flaggedExercises.push({ exercise: ex, matchedInjuries: contra.matches }); }
   });
   const flaggedIds = flaggedExercises.map((f) => f.exercise.exercise_id);
   const safePool = equipmentFiltered.filter((ex) => !flaggedIds.includes(ex.exercise_id));
@@ -216,9 +249,7 @@ export function generateProgram(context: ProgramContext): Program {
   const scored = safePool.map((ex) => ({ ex, ...scoreExercise(ex, context) }));
   scored.sort((a, b) => b.score - a.score);
 
-  const warmupPool = scored.filter((s) => s.ex.nervous_system_effect === "Regulating" || s.ex.pattern === "Mobility");
   const mainPool = scored.filter((s) => s.ex.pattern !== "Mobility" && s.ex.pattern !== "Recovery");
-  const regulationPool = scored.filter((s) => s.ex.nervous_system_effect === "Regulating");
 
   let exerciseCount = context.exerciseCount || (readiness <= 2 ? 2 : readiness === 3 ? 3 : readiness === 4 ? 4 : 5);
   let setsForReadiness = readiness <= 2 ? 2 : readiness >= 4 ? 4 : 3;
@@ -226,11 +257,34 @@ export function generateProgram(context: ProgramContext): Program {
   if (trend === "volatile" && setsForReadiness > 2) setsForReadiness -= 1;
   if (exerciseCount > mainPool.length) exerciseCount = mainPool.length;
 
-  const warmup = warmupPool.slice(0, 1).map((s) => buildPrescription(s.ex, 1, "2 min"));
-  const main = mainPool.slice(0, exerciseCount).map((s) => buildPrescription(s.ex, setsForReadiness, readiness <= 2 ? "easy, 10-12" : "10"));
-  const regulation = stress >= 4 ? regulationPool.slice(0, 1).map((s) => buildPrescription(s.ex, 1, "3-5 min")) : [];
+  const mainExercises = mainPool.slice(0, exerciseCount).map((s) => s.ex);
+  const main = mainExercises.map((ex) => buildPrescription(ex, setsForReadiness, readiness <= 2 ? "easy, 10-12" : "10"));
 
-  return { warmup, main, regulation, flaggedExercises, readiness, trend };
+  const usedInMain = new Set(mainExercises.map((ex) => ex.exercise_id));
+  const region = dominantBodyRegion(mainExercises);
+  const mobilityPool = safePool.filter((ex) => ex.pattern === "Mobility" && !usedInMain.has(ex.exercise_id) && !MOBILITY_POOL_EXCLUDE_IDS.includes(ex.exercise_id));
+  const regionPool = region ? mobilityPool.filter((ex) => subcategoryTags(ex).includes(region)) : [];
+  const activationPool = shuffle(regionPool.length ? regionPool : mobilityPool);
+  const raisePool = shuffle(safePool.filter((ex) => RAISE_IDS.includes(ex.exercise_id) && !usedInMain.has(ex.exercise_id)));
+
+  const warmupExercises: ExerciseV2[] = [];
+  if (readiness > 2 && raisePool.length) warmupExercises.push(raisePool[0]);
+  activationPool.forEach((ex) => {
+    if (warmupExercises.length < 2 && !warmupExercises.some((w) => w.exercise_id === ex.exercise_id)) warmupExercises.push(ex);
+  });
+  const warmup = warmupExercises.map((ex, i) => buildPrescription(ex, 1, RAISE_IDS.includes(ex.exercise_id) && i === 0 ? "1-2 min" : "8-10 each side"));
+
+  const warmupIds = new Set(warmupExercises.map((ex) => ex.exercise_id));
+  const cooldownMobility = shuffle(mobilityPool.filter((ex) => !warmupIds.has(ex.exercise_id))).slice(0, 2);
+  // Bonus: an extra regulation-pattern exercise when stress is logged high,
+  // on top of the cool-down that now always runs (see getDetailedSession's
+  // closing breath practice) — preserves the old "extra help when stressed"
+  // behavior without making the base cool-down conditional on stress.
+  const cooldownIds = new Set(cooldownMobility.map((ex) => ex.exercise_id));
+  const regulationBonus = stress >= 4 ? safePool.filter((ex) => ex.nervous_system_effect === "Regulating" && !usedInMain.has(ex.exercise_id) && !warmupIds.has(ex.exercise_id) && !cooldownIds.has(ex.exercise_id)).slice(0, 1) : [];
+  const cooldown = [...cooldownMobility.map((ex) => buildPrescription(ex, 1, "30-45s each side")), ...regulationBonus.map((ex) => buildPrescription(ex, 1, "3-5 min"))];
+
+  return { warmup, main, cooldown, flaggedExercises, readiness, trend };
 }
 
 function exerciseV2ToMovement(ex: ExerciseV2): Movement {
@@ -257,9 +311,9 @@ function exerciseV2ToMovement(ex: ExerciseV2): Movement {
 export function getDetailedSession(context: ProgramContext): PlayerSession {
   const program = generateProgram(context);
   const readiness = context.readiness || 3;
-  const allPrescriptions = [...program.warmup, ...program.main, ...program.regulation];
+  const mainMinutes = readiness <= 2 ? 5 : 8;
 
-  const exercises: SessionExercise[] = allPrescriptions.map((p) => {
+  const toSessionExercise = (p: ProgramPrescription, phase: SessionExercise["phase"], estMinutes: number): SessionExercise => {
     const full = EXERCISES.find((e) => e.exercise_id === p.exercise_id);
     const movement = full
       ? exerciseV2ToMovement(full)
@@ -271,15 +325,35 @@ export function getDetailedSession(context: ProgramContext): PlayerSession {
       reps: p.reps,
       rest: readiness <= 2 ? 30 : 60,
       coachNote: p.coach_cue,
+      phase,
+      estMinutes,
     };
-  });
+  };
+
+  const warmup = program.warmup.map((p) => toSessionExercise(p, "warmup", 2));
+  const main = program.main.map((p) => toSessionExercise(p, "main", mainMinutes));
+  const cooldownPrescriptions = program.cooldown.map((p) => toSessionExercise(p, "cooldown", 2));
+  const breathPractice = getDefaultCooldownPractice();
+  const breathExercise: SessionExercise = {
+    movementKey: "regulate_" + breathPractice.id,
+    movement: regulationPracticeToMovement(breathPractice),
+    sets: 1,
+    reps: `${breathPractice.durationMin} min`,
+    rest: 0,
+    coachNote: "Downshift — from your Regulate library.",
+    phase: "cooldown",
+    estMinutes: breathPractice.durationMin,
+  };
+  const cooldown = [...cooldownPrescriptions, breathExercise];
+  const exercises = [...warmup, ...main, ...cooldown];
 
   return {
     sessionTitle: readiness <= 2 ? "Detailed Session — Rest & Restore" : readiness >= 4 ? "Detailed Session — Strong" : "Detailed Session — Foundation",
-    sessionRationale: "Built from your goal, experience level, equipment, and today's readiness — includes a warm-up and, when stress is logged high, a regulation finisher.",
+    sessionRationale: "Built from your goal, experience level, equipment, and today's readiness — includes a warm-up and a cool-down that always closes with a Regulate breath practice.",
     coachCue: "Every rep is a vote for who you're becoming.",
-    estimatedMinutes: exercises.length * (readiness <= 2 ? 5 : 8),
+    estimatedMinutes: exercises.reduce((sum, e) => sum + e.estMinutes, 0),
     exercises,
+    phases: { warmup, main, cooldown },
     flaggedExercises: program.flaggedExercises.map((f) => ({ movement: exerciseV2ToMovement(f.exercise), matchedInjuries: f.matchedInjuries })),
     trend: program.trend,
   };

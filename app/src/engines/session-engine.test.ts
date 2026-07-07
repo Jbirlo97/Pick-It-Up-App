@@ -80,6 +80,38 @@ describe("generateDeterministicSession — safety (non-negotiable)", () => {
   });
 });
 
+// Per docs/session-structure-spec.md §1: sessions gained a warm-up and
+// cool-down phase. The existing safety rule (never serve a contraindicated
+// movement) has to hold for these new pools too, not just `main`.
+describe("generateDeterministicSession — warm-up/cool-down (session-structure-spec.md §1)", () => {
+  const allInjuryFlags = Array.from(new Set(MOVS.flatMap((m) => m.contra))).map((c) => {
+    const words = c.split(" ");
+    return words[words.length - 2] || c;
+  });
+
+  it("never serves a warm-up or cool-down movement matching a flagged injury, across 100 randomized runs", () => {
+    for (let i = 0; i < 100; i++) {
+      const readiness = 1 + Math.floor(Math.random() * 5);
+      const flagCount = Math.floor(Math.random() * 3);
+      const injuryFlags = Array.from({ length: flagCount }, () => allInjuryFlags[Math.floor(Math.random() * allInjuryFlags.length)]);
+
+      const result = generateDeterministicSession({ readiness, injuryFlags, sessionHistory: [] });
+
+      [...result.warmup, ...result.cooldown].forEach((exercise) => {
+        const matches = exercise.contra.filter((c) => injuryFlags.some((flag) => c.toLowerCase().includes(flag.toLowerCase())));
+        expect(matches, `"${exercise.name}" was served despite matching flags [${injuryFlags.join(", ")}]`).toEqual([]);
+      });
+    }
+  });
+
+  it("skips the cardio raise at low readiness, going straight to gentle mobility", () => {
+    const results = Array.from({ length: 20 }, () => generateDeterministicSession({ readiness: 1, injuryFlags: [], sessionHistory: [] }));
+    results.forEach((r) => {
+      r.warmup.forEach((w) => expect(["Jump Rope", "Mountain Climber"]).not.toContain(w.name));
+    });
+  });
+});
+
 describe("generateDeterministicSession — equipment filtering", () => {
   // A bodyweight-only user must never be served a movement requiring
   // equipment they don't have — a functional safety concern (attempting an
@@ -180,10 +212,15 @@ describe("getSession", () => {
   it("wraps generateDeterministicSession into the Player shape with real movement lookups", () => {
     const session = getSession({ tone: "Balanced", checkIn: { readiness: 3, sleep: 3, mood: 3, stress: 3 }, week: 1, equipment: ["bodyweight"], injuries: [], sessionHistory: [], christianLens: false, userName: "Josh" });
     expect(session.exercises.length).toBeGreaterThan(0);
-    session.exercises.forEach((e) => {
-      expect(MDB[e.movementKey]).toBeDefined();
-      expect(e.movement.name).toBe(MDB[e.movementKey].name);
-    });
+    // The closing cool-down item is a Regulate breath practice, not an MDB
+    // movement (see docs/session-structure-spec.md §1) — every other
+    // exercise resolves to a real MDB entry.
+    session.exercises
+      .filter((e) => !e.movementKey.startsWith("regulate_"))
+      .forEach((e) => {
+        expect(MDB[e.movementKey]).toBeDefined();
+        expect(e.movement.name).toBe(MDB[e.movementKey].name);
+      });
   });
 
   it("never includes a flagged movement in the returned exercises", () => {
@@ -192,6 +229,16 @@ describe("getSession", () => {
       const matches = e.movement.contra.filter((c) => c.toLowerCase().includes("knee"));
       expect(matches).toEqual([]);
     });
+  });
+
+  it("always closes the cool-down with a Regulate breath practice", () => {
+    const session = getSession({ tone: "Balanced", checkIn: { readiness: 3, sleep: 3, mood: 3, stress: 3 }, week: 1, equipment: ["bodyweight"], injuries: [], sessionHistory: [], christianLens: false, userName: "" });
+    const cooldown = session.phases.cooldown;
+    expect(cooldown.length).toBeGreaterThan(0);
+    expect(cooldown[cooldown.length - 1].movement.name).toBe("Extended Exhale");
+    expect(cooldown[cooldown.length - 1].phase).toBe("cooldown");
+    // exercises is the flat backward-compatible list — phases partition it exactly.
+    expect(session.exercises.length).toBe(session.phases.warmup.length + session.phases.main.length + session.phases.cooldown.length);
   });
 });
 

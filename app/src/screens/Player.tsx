@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { C } from "../theme";
 import { expandCue, expandError } from "../lib/movementCopy";
-import { ExerciseDemoComingSoon } from "../components/ExerciseDemoComingSoon";
+import { ExerciseDemoComingSoon, ExerciseThumbnailSlot } from "../components/ExerciseDemoComingSoon";
 import { SectionLabel } from "../components/Shared";
-import type { AppState, PlayerSession, SetState } from "../types";
+import type { AppState, PlayerSession, SessionExercise, SetState } from "../types";
 
 type Phase = "intro" | "active" | "rest" | "complete";
 type Tab = "cues" | "errors" | "demo" | "detail";
+
+const PHASE_LABELS: Record<SessionExercise["phase"], string> = { warmup: "Warm-up", main: "Workout", cooldown: "Cool-down" };
+const PHASE_ORDER: SessionExercise["phase"][] = ["warmup", "main", "cooldown"];
+
+function phaseMinutes(list: SessionExercise[]): number {
+  return list.reduce((sum, e) => sum + e.estMinutes, 0);
+}
 
 export function Player({
   session,
@@ -108,17 +115,31 @@ export function Player({
             <div style={{ fontFamily: "'Georgia',serif", fontSize: 13, color: C.sl, fontStyle: "italic" }}>{state.aiInsight.reflection}</div>
           </div>
         ) : null}
-        {session.exercises.map((e, i) => (
-          <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderBottom: "1px solid rgba(200,221,208,0.1)" }}>
-            <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(200,221,208,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: C.go, fontWeight: 700, flexShrink: 0, fontFamily: "Inter,sans-serif" }}>{i + 1}</div>
-            <div>
-              <div style={{ fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, color: C.cr }}>{e.movement ? e.movement.name : ""}</div>
-              <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.sl }}>
-                {e.sets}×{e.reps}
+        {PHASE_ORDER.map((phaseKey) => {
+          const list = session.phases[phaseKey];
+          if (!list.length) return null;
+          return (
+            <div key={phaseKey}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 16, marginBottom: 4 }}>
+                <div style={{ fontSize: 10, letterSpacing: 2, color: C.go, fontFamily: "Inter,sans-serif", fontWeight: 700, textTransform: "uppercase" }}>{PHASE_LABELS[phaseKey]}</div>
+                <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.sl }}>
+                  {list.length} · ~{phaseMinutes(list)} min
+                </div>
               </div>
+              {list.map((e, i) => (
+                <div key={phaseKey + i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderBottom: "1px solid rgba(200,221,208,0.1)" }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(200,221,208,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: C.go, fontWeight: 700, flexShrink: 0, fontFamily: "Inter,sans-serif" }}>{session.exercises.indexOf(e) + 1}</div>
+                  <ExerciseThumbnailSlot size={32} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, color: C.cr }}>{e.movement ? e.movement.name : ""}</div>
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.sl }}>{e.reps}</div>
+                  </div>
+                  <span style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.go, background: "rgba(200,169,106,0.15)", border: "1px solid " + C.go, borderRadius: 12, padding: "2px 8px", fontWeight: 700, flexShrink: 0 }}>×{e.sets}</span>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div style={{ fontSize: 12, color: C.sl, fontFamily: "Inter,sans-serif", margin: "14px 0", textAlign: "center" }}>
           ~{session.estimatedMinutes} min · {totalEx} exercises
         </div>
@@ -216,6 +237,7 @@ export function Player({
             {exIdx + 1}/{totalEx} · {Math.round(pct)}%
           </div>
         </div>
+        <div style={{ fontSize: 10, color: C.sl, fontFamily: "Inter,sans-serif", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3, opacity: 0.85 }}>{PHASE_LABELS[ex.phase]}</div>
         <div style={{ fontSize: 11, color: C.go, fontFamily: "Inter,sans-serif", letterSpacing: 2, textTransform: "uppercase", marginBottom: 5 }}>
           Set {setNum} of {sets}
         </div>

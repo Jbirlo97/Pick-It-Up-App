@@ -33,6 +33,8 @@ export interface SessionHistoryEntry {
   completed: boolean;
 }
 
+export type SessionPhase = "warmup" | "main" | "cooldown";
+
 export interface SessionExercise {
   movementKey: string;
   movement: Movement;
@@ -40,6 +42,8 @@ export interface SessionExercise {
   reps: string;
   rest: number;
   coachNote: string;
+  phase: SessionPhase;
+  estMinutes: number;
 }
 
 export interface FlaggedMovement {
@@ -53,6 +57,7 @@ export interface PlayerSession {
   coachCue: string;
   estimatedMinutes: number;
   exercises: SessionExercise[];
+  phases: { warmup: SessionExercise[]; main: SessionExercise[]; cooldown: SessionExercise[] };
   flaggedExercises: FlaggedMovement[];
   trend: ReadinessTrend;
 }
@@ -126,8 +131,18 @@ export interface CommunityPost {
   flagged: boolean;
 }
 
+export interface DetailedSessionExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  cue: string;
+  contra: string[];
+}
+
 export interface DetailedSession {
-  main: { name: string; sets: number; reps: string; cue: string; contra: string[] }[];
+  main: DetailedSessionExercise[];
+  warmup: DetailedSessionExercise[];
+  cooldown: DetailedSessionExercise[];
   flagged: FlaggedMovement[];
   trend: ReadinessTrend;
   readiness: number;

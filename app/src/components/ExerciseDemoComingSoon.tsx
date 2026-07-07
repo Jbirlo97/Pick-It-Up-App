@@ -32,3 +32,15 @@ export function PlayIcon({ color, size = 12 }: { color: string; size?: number })
     </svg>
   );
 }
+
+// Compact "coming soon" thumbnail for exercise rows (session intro list,
+// Player active header) — same honest slot as ExerciseDemoComingSoon above,
+// sized for a row rather than a full detail card. Josh's filmed clips drop
+// into this same slot once available.
+export function ExerciseThumbnailSlot({ size = 40 }: { size?: number }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: 8, background: C.gd, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <PlayIcon color={C.go} size={Math.round(size * 0.28)} />
+    </div>
+  );
+}

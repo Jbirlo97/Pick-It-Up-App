@@ -1,10 +1,12 @@
 import { MDB, MOVS } from "../data/exercises-legacy";
 import { CONSISTENCY_LINES, PILLARS, QUOTES } from "../data/content";
 import { mapEquipmentToEngineAccess } from "../lib/equipmentAccess";
+import { getDefaultCooldownPractice, regulationPracticeToMovement } from "../lib/regulationAdapter";
 import type {
   AiInsight,
   CheckInData,
   DetailedSession,
+  DetailedSessionExercise,
   FlaggedMovement,
   Movement,
   PlayerSession,
@@ -79,6 +81,80 @@ interface DeterministicSessionContext {
   equipment?: string[];
 }
 
+function shuffle<T>(arr: T[]): T[] {
+  return arr.slice().sort(() => Math.random() - 0.5);
+}
+
+// Body-region tags shared by MDB `tags` — used to match warm-up/cool-down
+// mobility work to whatever the generated main session actually trains
+// (docs/session-structure-spec.md §1), rather than picking at random.
+const BODY_REGION_TAGS = ["lower", "upper", "core", "full body", "back"];
+
+function dominantBodyRegion(movements: Movement[]): string | null {
+  const counts: Record<string, number> = {};
+  movements.forEach((m) => m.tags.forEach((t) => { if (BODY_REGION_TAGS.includes(t)) counts[t] = (counts[t] || 0) + 1; }));
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return ranked.length ? ranked[0][0] : null;
+}
+
+// Curated bodyweight "raise" candidates for the warm-up (spec's own examples:
+// jumping jacks / jump rope / march in place) — a narrow hand-picked set
+// rather than a broad tag filter, since not every "power" tagged movement
+// (e.g. squat jumps) is an appropriate easy cardio raise.
+const RAISE_KEYS = ["jump_rope", "mountain_climber"];
+
+// Excluded from the mobility/stretch pool: it's a breathing exercise, and
+// the cool-down already always closes with one (the Regulate practice
+// below) — including both would read as a redundant double breathing beat.
+const MOBILITY_POOL_EXCLUDE_NAMES = [MDB.breath_work.name];
+
+function filterSafe(pool: Movement[], injuryFlags: string[], flagged: FlaggedMovement[], seen: Set<string>): Movement[] {
+  const safe: Movement[] = [];
+  pool.forEach((m) => {
+    const check = checkMovementContraindications(m, injuryFlags);
+    if (check.blocked) {
+      if (!seen.has(m.name)) { seen.add(m.name); flagged.push({ movement: m, matchedInjuries: check.matches }); }
+    } else {
+      safe.push(m);
+    }
+  });
+  return safe;
+}
+
+function toDetailedExercise(m: Movement, sets: number, reps: string): DetailedSessionExercise {
+  return { name: m.name, sets, reps, cue: m.cues[0], contra: m.contra };
+}
+
+// Warm-up (bodyweight-first, no machine assumptions) + cool-down mobility
+// picks, matched to the body region the main session trains. Any pool
+// candidate blocked by an injury flag is folded into the same `flagged`
+// list the main pool uses, so "worked around your flags" stays honest
+// about warm-up/cool-down exclusions too, not just the main workout.
+function selectWarmupAndCooldown(mainMovements: Movement[], injuryFlags: string[], readiness: number, flagged: FlaggedMovement[], seenNames: Set<string>) {
+  const usedInMain = new Set(mainMovements.map((m) => m.name));
+  const region = dominantBodyRegion(mainMovements);
+
+  const mobilityPoolRaw = MOVS.filter((m) => m.equipment === "Bodyweight" && m.tags.includes("mobility") && !usedInMain.has(m.name) && !MOBILITY_POOL_EXCLUDE_NAMES.includes(m.name));
+  const mobilityPool = filterSafe(mobilityPoolRaw, injuryFlags, flagged, seenNames);
+  const regionPool = region ? mobilityPool.filter((m) => m.tags.includes(region)) : [];
+  const activationPool = shuffle(regionPool.length ? regionPool : mobilityPool);
+
+  const raisePoolRaw = RAISE_KEYS.map((k) => MDB[k]).filter((m): m is Movement => !!m && !usedInMain.has(m.name));
+  const raisePool = shuffle(filterSafe(raisePoolRaw, injuryFlags, flagged, seenNames));
+
+  const warmupMovs: Movement[] = [];
+  if (readiness > 2 && raisePool.length) warmupMovs.push(raisePool[0]);
+  activationPool.forEach((m) => {
+    if (warmupMovs.length < 2 && !warmupMovs.some((w) => w.name === m.name)) warmupMovs.push(m);
+  });
+
+  const warmupNames = new Set(warmupMovs.map((m) => m.name));
+  const cooldownPool = shuffle(mobilityPool.filter((m) => !warmupNames.has(m.name)));
+  const cooldownMovs = cooldownPool.slice(0, 2);
+
+  return { warmupMovs, cooldownMovs };
+}
+
 // SAFETY (non-negotiable, see CLAUDE.md): contraindicated movements are
 // removed from the selection pool, not just listed. The flagged list is
 // returned so the UI can tell the user what was worked around and why.
@@ -100,9 +176,10 @@ export function generateDeterministicSession(context: DeterministicSessionContex
   else if (readiness === 3) pool = pool.filter((m) => m.tier <= 2);
 
   const flagged: FlaggedMovement[] = [];
+  const seenNames = new Set<string>();
   pool.forEach((m) => {
     const check = checkMovementContraindications(m, injuryFlags);
-    if (check.blocked) flagged.push({ movement: m, matchedInjuries: check.matches });
+    if (check.blocked && !seenNames.has(m.name)) { seenNames.add(m.name); flagged.push({ movement: m, matchedInjuries: check.matches }); }
   });
   const flaggedNames = flagged.map((f) => f.movement.name);
   const safePool = pool.filter((m) => !flaggedNames.includes(m.name));
@@ -113,16 +190,14 @@ export function generateDeterministicSession(context: DeterministicSessionContex
   if (trend === "volatile" && sets > 2) sets -= 1;
   if (exerciseCount > safePool.length) exerciseCount = safePool.length;
 
-  const shuffled = safePool.slice().sort(() => Math.random() - 0.5);
-  const main = shuffled.slice(0, exerciseCount).map((m) => ({
-    name: m.name,
-    sets,
-    reps: readiness <= 2 ? "easy, 10-12" : "10",
-    cue: m.cues[0],
-    contra: m.contra,
-  }));
+  const mainMovements = shuffle(safePool).slice(0, exerciseCount);
+  const main = mainMovements.map((m) => toDetailedExercise(m, sets, readiness <= 2 ? "easy, 10-12" : "10"));
 
-  return { main, flagged, trend, readiness };
+  const { warmupMovs, cooldownMovs } = selectWarmupAndCooldown(mainMovements, injuryFlags, readiness, flagged, seenNames);
+  const warmup = warmupMovs.map((m) => toDetailedExercise(m, 1, m.tags.includes("power") ? "1-2 min" : "8-10 each side"));
+  const cooldown = cooldownMovs.map((m) => toDetailedExercise(m, 1, "30-45s each side"));
+
+  return { main, warmup, cooldown, flagged, trend, readiness };
 }
 
 interface GetInsightArgs {
@@ -276,7 +351,8 @@ export function getSession(args: GetSessionArgs): PlayerSession {
         ? tonePrefix + "Moderate readiness. A steady, sustainable session."
         : tonePrefix + "Strong readiness. Built to match it.";
 
-  const exercises: SessionExercise[] = result.main.map((m) => {
+  const mainMinutes = readiness <= 2 ? 5 : 8;
+  const toSessionExercise = (m: { name: string; sets: number; reps: string; cue: string }, phase: SessionExercise["phase"], estMinutes: number): SessionExercise => {
     const movKey = Object.keys(MDB).find((k) => MDB[k].name === m.name);
     return {
       movementKey: movKey || "goblet_squat",
@@ -285,15 +361,35 @@ export function getSession(args: GetSessionArgs): PlayerSession {
       reps: m.reps,
       rest: readiness <= 2 ? 30 : 60,
       coachNote: m.cue || "",
+      phase,
+      estMinutes,
     };
-  });
+  };
+
+  const warmup = result.warmup.map((m) => toSessionExercise(m, "warmup", 2));
+  const main = result.main.map((m) => toSessionExercise(m, "main", mainMinutes));
+  const cooldownStretches = result.cooldown.map((m) => toSessionExercise(m, "cooldown", 2));
+  const breathPractice = getDefaultCooldownPractice();
+  const breathExercise: SessionExercise = {
+    movementKey: "regulate_" + breathPractice.id,
+    movement: regulationPracticeToMovement(breathPractice),
+    sets: 1,
+    reps: `${breathPractice.durationMin} min`,
+    rest: 0,
+    coachNote: "Downshift — from your Regulate library.",
+    phase: "cooldown",
+    estMinutes: breathPractice.durationMin,
+  };
+  const cooldown = [...cooldownStretches, breathExercise];
+  const exercises = [...warmup, ...main, ...cooldown];
 
   return {
     sessionTitle: readiness <= 2 ? "Rest & Restore" : readiness >= 4 ? "Strong Session" : "Foundation Session",
     sessionRationale: rationale,
     coachCue: "Every rep is a vote for who you're becoming.",
-    estimatedMinutes: exercises.length * (readiness <= 2 ? 5 : 8),
+    estimatedMinutes: exercises.reduce((sum, e) => sum + e.estMinutes, 0),
     exercises,
+    phases: { warmup, main, cooldown },
     flaggedExercises: result.flagged,
     trend: result.trend,
   };
