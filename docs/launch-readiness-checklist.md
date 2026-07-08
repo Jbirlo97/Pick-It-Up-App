@@ -89,6 +89,14 @@ going live.
   still honestly surfaced in the UI everywhere nutrition data is shown —
   don't let this disclosure quietly disappear during the Claude Code
   rebuild.
+- **Status (audited 2026-07-08):** (b) holds. The `RecipeDetail` view
+  already showed "~ estimated nutrition, not yet verified against
+  AUSNUT/FSANZ." The `RecipeCard` (Discover tab) did not — it showed raw
+  kcal/protein with no estimate indicator, a real gap relative to
+  "everywhere nutrition data is shown." Fixed: card now shows `~kcal` /
+  `~g protein`, matching the detail view's own disclosure. (a) — actual
+  AUSNUT/FSANZ verification — is still outstanding and needs Josh's time,
+  not more code.
 
 ### 2.3 Shopping list / ingredient-quantity data
 - **Why:** `buildShoppingList()` works from free-text ingredient patterns,
@@ -98,6 +106,9 @@ going live.
   quantities exists, or the "quantities are estimated" disclosure stays
   visible in the UI. Not required for a first build, but shouldn't be
   silently presented as exact once it's a real product people shop from.
+- **Status (audited 2026-07-08):** Confirmed intact — "Quantities are
+  estimated, not exact — check before you shop" renders unconditionally
+  whenever the shopping list opens. No gap found.
 
 ### 2.4 Christian lens scripture content review
 - **Why:** The pillar-to-scripture mapping was written to be broadly
@@ -170,6 +181,33 @@ visual tidiness:
 - The one-tap contraindication warning interstitial — must stay mandatory
   and block progression, not become a passive banner.
 - BMI muscle-mass caveat and WHtR explanation copy.
+
+**Audit (2026-07-08):** Went through all five against the live app.
+
+- "Not medical advice" — was only shown inside the "worked around your
+  flags" notice, i.e. only when an injury flag actually excluded
+  something. A user with no injuries logged saw no medical disclaimer at
+  all on either session type. Fixed: added an unconditional line to the
+  session intro (Player.tsx) so it shows regardless of flag state.
+- `nutritionSource: "estimated"` — gap found and fixed; see §2.2 above.
+- Shopping list note — confirmed intact; see §2.3 above.
+- BMI/WHtR copy — confirmed intact, unchanged from the original wording
+  (Nourish.tsx BMI tab).
+- **The contraindication interstitial needs a decision, not a fix.** This
+  bullet describes a *mandatory, blocking* one-tap acknowledgment gate —
+  the original prototype's pattern. Earlier in this build, an explicit
+  product decision (recorded in CLAUDE.md and in `program-engine.ts`'s own
+  header comment) replaced that gate with something stricter: flagged
+  exercises are excluded from the pool entirely, so nothing contraindicated
+  is ever offered for the user to acknowledge in the first place. The
+  informational "worked around your flags" notice is what's shown instead.
+  Functionally this is safer than the interstitial it replaced, but this
+  checklist bullet and CLAUDE.md's non-negotiables list were never
+  reconciled after that decision — as written, this bullet still describes
+  the old pattern. Recommend updating this bullet (and the matching
+  CLAUDE.md line) to describe the exclusion + notice pattern explicitly,
+  so a future reader doesn't mistake the current design for an unfinished
+  interstitial.
 
 ---
 

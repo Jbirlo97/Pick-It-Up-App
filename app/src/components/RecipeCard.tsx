@@ -36,8 +36,9 @@ export function RecipeCard({ recipe, onOpen, saved, onToggleSave }: { recipe: Sc
         ))}
       </div>
       <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.mu, display: "flex", gap: 14 }}>
-        <span>{recipe.calories} kcal</span>
-        <span>{recipe.protein}g protein</span>
+        {/* "~" matches the estimated-nutrition disclosure on the detail view (nutritionSource: "estimated") — the card is the first place this data appears and shouldn't imply more precision than the detail view does. */}
+        <span>~{recipe.calories} kcal</span>
+        <span>~{recipe.protein}g protein</span>
         <span>${recipe.costPerServe.toFixed(2)}/serve</span>
       </div>
     </div>

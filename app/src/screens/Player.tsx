@@ -4,6 +4,8 @@ import { expandCue, expandError } from "../lib/movementCopy";
 import { ExerciseDemoComingSoon, ExerciseThumbnailSlot } from "../components/ExerciseDemoComingSoon";
 import { SectionLabel } from "../components/Shared";
 import { getSwapOptions, type SwapOption } from "../lib/exerciseSwap";
+import { logSet, parsePrescribedReps } from "../lib/setLogging";
+import { suggestProgression } from "../lib/progression";
 import type { AppState, PlayerSession, SessionExercise, SetState } from "../types";
 
 type Phase = "intro" | "active" | "rest" | "complete";
@@ -39,15 +41,17 @@ export function Player({
   const [expandedCue, setExpandedCue] = useState<number | null>(null);
   const [expandedError, setExpandedError] = useState<number | null>(null);
   const [swapOpenIndex, setSwapOpenIndex] = useState<number | null>(null);
+  const [repsInput, setRepsInput] = useState("");
+  const [weightInput, setWeightInput] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Per docs/session-structure-spec.md §2: applies a swap in place, keyed by
-  // position in the flat exercises list, then rebuilds `phases` from it so
-  // both views (and the currently-playing index) stay in sync.
-  const applySwap = (targetIndex: number, option: SwapOption) => {
+  // Splits exercises/phases update into one place, since both swaps (§2)
+  // and set-logging (§3) mutate a single exercise in place and need to
+  // rebuild `phases` from the flat list afterward.
+  const updateCurrentExercise = (targetIndex: number, updater: (e: SessionExercise) => SessionExercise) => {
     setState((s) => {
       if (!s.currentSession) return s;
-      const exercises = s.currentSession.exercises.map((e, i) => (i === targetIndex ? option.apply(e) : e));
+      const exercises = s.currentSession.exercises.map((e, i) => (i === targetIndex ? updater(e) : e));
       const phases = {
         warmup: exercises.filter((e) => e.phase === "warmup"),
         main: exercises.filter((e) => e.phase === "main"),
@@ -57,12 +61,38 @@ export function Player({
     });
   };
 
+  // Per docs/session-structure-spec.md §2: applies a swap in place, keyed by
+  // position in the flat exercises list.
+  const applySwap = (targetIndex: number, option: SwapOption) => updateCurrentExercise(targetIndex, option.apply);
+
   const ex = session.exercises[exIdx];
   const mov = ex ? ex.movement : null;
   const totalEx = session.exercises.length;
   const sets = ex ? ex.sets : 3;
   const rest = ex ? ex.rest : 60;
   const pct = ((exIdx * sets + (setNum - 1)) / (totalEx * sets)) * 100;
+
+  // Per docs/session-structure-spec.md §3 v1: logging is scoped to the main
+  // workout phase — warm-up/cool-down items are time- or side-based ("1-2
+  // min", "8-10 each side"), not the kind of set/rep progression this is for.
+  const isLoggable = ex && ex.phase === "main";
+
+  // Reset the reps/weight inputs to this exercise's prescribed default
+  // whenever the current exercise changes (new exercise, or a swap).
+  useEffect(() => {
+    const prescribed = ex ? parsePrescribedReps(ex.reps) : null;
+    setRepsInput(prescribed !== null ? String(prescribed) : "");
+    setWeightInput("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exIdx, ex?.movementKey]);
+
+  const logCurrentSet = () => {
+    if (!ex || !isLoggable) return;
+    const repsNum = Number(repsInput);
+    if (!Number.isFinite(repsNum) || repsNum <= 0) return;
+    const weightNum = ex.movement.equipment !== "Bodyweight" && weightInput.trim() ? Number(weightInput) : undefined;
+    updateCurrentExercise(exIdx, (e) => logSet(e, repsNum, weightNum));
+  };
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -110,6 +140,8 @@ export function Player({
         <div style={{ fontSize: 11, letterSpacing: 3, color: C.go, fontFamily: "Inter,sans-serif", fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>Your Session</div>
         <div style={{ fontFamily: "'Georgia',serif", fontSize: 26, color: C.cr, lineHeight: 1.2, marginBottom: 10 }}>{session.sessionTitle}</div>
         <div style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: C.sl, lineHeight: 1.6, marginBottom: 16 }}>{session.sessionRationale}</div>
+        {/* Per CLAUDE.md's honest-disclosure list: this must stay visible on every session's results, not only when an injury flag excluded something. */}
+        <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.sl, opacity: 0.75, marginBottom: 16 }}>Not medical advice — if pain persists, see a professional.</div>
         {session.flaggedExercises && session.flaggedExercises.length > 0 ? (
           <div style={{ background: "rgba(200,169,106,0.12)", border: "1px solid rgba(200,169,106,0.35)", borderRadius: 10, padding: "10px 13px", marginBottom: 16 }}>
             <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.go, fontWeight: 600, marginBottom: 3 }}>Worked around your flags</div>
@@ -299,6 +331,43 @@ export function Player({
       <div style={{ background: "rgba(200,169,106,0.08)", padding: "10px 24px", borderBottom: "1px solid " + C.sl }}>
         <div style={{ fontFamily: "'Georgia',serif", fontSize: 13, color: C.gd, fontStyle: "italic" }}>"{ex.coachNote}"</div>
       </div>
+      {isLoggable ? (
+        <div style={{ padding: "12px 24px", borderBottom: "1px solid " + C.sl }}>
+          {(() => {
+            const suggestion = suggestProgression(ex.movement, state.sessionHistory, state.bodyStats.unit);
+            return suggestion ? (
+              <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.sg, fontStyle: "italic", marginBottom: 8 }}>Suggestion — {suggestion.text}</div>
+            ) : null;
+          })()}
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: 1, color: C.mu, fontFamily: "Inter,sans-serif", textTransform: "uppercase", marginBottom: 4 }}>Reps done</div>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={repsInput}
+                onChange={(e) => setRepsInput(e.target.value)}
+                style={{ width: 68, padding: "8px 10px", borderRadius: 8, border: "1px solid " + C.sl, fontFamily: "Inter,sans-serif", fontSize: 14, boxSizing: "border-box" }}
+              />
+            </div>
+            {ex.movement.equipment !== "Bodyweight" ? (
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: 1, color: C.mu, fontFamily: "Inter,sans-serif", textTransform: "uppercase", marginBottom: 4 }}>Weight ({state.bodyStats.unit === "imperial" ? "lb" : "kg"}) — optional</div>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={weightInput}
+                  onChange={(e) => setWeightInput(e.target.value)}
+                  placeholder="e.g. 20"
+                  style={{ width: 96, padding: "8px 10px", borderRadius: 8, border: "1px solid " + C.sl, fontFamily: "Inter,sans-serif", fontSize: 14, boxSizing: "border-box" }}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {(() => {
         const swapOptions = getSwapOptions(ex, state.injuries);
         if (!swapOptions.length) return null;
@@ -420,7 +489,13 @@ export function Player({
         ) : null}
       </div>
       <div style={{ padding: "14px 24px 30px", borderTop: "1px solid " + C.sl }}>
-        <button onClick={goNext} style={{ width: "100%", padding: "15px", background: C.gd, color: C.cr, border: "none", borderRadius: 12, fontFamily: "Inter,sans-serif", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+        <button
+          onClick={() => {
+            logCurrentSet();
+            goNext();
+          }}
+          style={{ width: "100%", padding: "15px", background: C.gd, color: C.cr, border: "none", borderRadius: 12, fontFamily: "Inter,sans-serif", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+        >
           {buttonLabel}
         </button>
       </div>
