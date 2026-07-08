@@ -70,9 +70,14 @@ export interface ProgramContext {
   exerciseCount?: number;
 }
 
+// Per docs/trainer-review-findings.md §1: exact key equality against the
+// canonical injury vocabulary (data/injuries.ts) — see
+// checkMovementContraindications in session-engine.ts for the full
+// rationale (substring matching silently never matched "lower back"
+// against "acute low back pain").
 export function checkContraindications(exercise: ExerciseV2, injuryFlags: string[]) {
   if (!injuryFlags || injuryFlags.length === 0) return { blocked: false, matches: [] as string[] };
-  const matches = exercise.contraindications.filter((c) => injuryFlags.some((flag) => c.toLowerCase().includes(flag.toLowerCase())));
+  const matches = exercise.contraindications.filter((c) => injuryFlags.includes(c));
   return { blocked: matches.length > 0, matches };
 }
 
@@ -300,6 +305,7 @@ function exerciseV2ToMovement(ex: ExerciseV2): Movement {
     progression: ex.progression,
     contra: ex.contraindications,
     equipment: ex.equipment,
+    note: ex.note,
   };
 }
 

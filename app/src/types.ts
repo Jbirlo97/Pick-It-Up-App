@@ -1,3 +1,5 @@
+import type { InjuryKey } from "./data/injuries";
+
 export type Tone = "Stoic" | "Balanced" | "Empathic";
 export type Unit = "metric" | "imperial";
 export type Sex = "male" | "female" | "unspecified" | "";
@@ -103,11 +105,19 @@ export interface Movement {
   errors: string[];
   regression: string;
   progression: string;
-  contra: string[];
+  // Canonical injury keys (see data/injuries.ts) — matched by exact
+  // equality against injury flags, per docs/trainer-review-findings.md §1.
+  // Never free text: that's what let "lower back" silently fail to match
+  // "acute low back pain" for the life of this app until the trainer
+  // review caught it.
+  contra: InjuryKey[];
   // "Bodyweight" for the original library; a specific piece of equipment
   // (e.g. "Dumbbells", "Barbell", "Squat rack") for anything requiring it —
   // see docs/integration-spec.md Section 4's equipment mapping.
   equipment: string;
+  // Educational aside shown alongside contraindications — not an
+  // exclusion, doesn't affect matching. docs/trainer-review-findings.md §5.
+  note?: string;
 }
 
 export interface Meal {
@@ -165,7 +175,7 @@ export interface DetailedSessionExercise {
   sets: number;
   reps: string;
   cue: string;
-  contra: string[];
+  contra: InjuryKey[];
 }
 
 export interface DetailedSession {

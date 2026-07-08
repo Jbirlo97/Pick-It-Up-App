@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MDB, MOVS } from "../data/exercises-legacy";
+import { INJURY_KEYS } from "../data/injuries";
 import { checkMovementContraindications, detectReadinessTrendDeterministic, generateDeterministicSession, getDigest, getInsight, getSession } from "./session-engine";
 import type { CheckInData, SessionHistoryEntry } from "../types";
 
@@ -8,29 +9,35 @@ describe("checkMovementContraindications", () => {
     expect(checkMovementContraindications(MDB.goblet_squat, [])).toEqual({ blocked: false, matches: [] });
   });
 
-  it("matches case-insensitively via substring", () => {
-    const result = checkMovementContraindications(MDB.goblet_squat, ["Knee"]);
+  it("matches on exact canonical key equality", () => {
+    const result = checkMovementContraindications(MDB.goblet_squat, ["knee"]);
     expect(result.blocked).toBe(true);
-    expect(result.matches).toEqual(["acute knee injury"]);
+    expect(result.matches).toEqual(["knee"]);
   });
 
   it("does not match unrelated injury flags", () => {
     const result = checkMovementContraindications(MDB.goblet_squat, ["wrist"]);
     expect(result.blocked).toBe(false);
   });
+
+  // docs/trainer-review-findings.md §1: the exact bug this fixes. "lower
+  // back" was never a substring of "acute low back pain", so this
+  // real-world flag/contra pair silently never matched under the old
+  // substring-matching implementation.
+  it("regression: a 'low_back' flag matches a movement contraindicated for low_back (previously a silent no-op)", () => {
+    const result = checkMovementContraindications(MDB.hip_hinge, ["low_back"]);
+    expect(result.blocked).toBe(true);
+  });
 });
 
 describe("generateDeterministicSession — safety (non-negotiable)", () => {
-  // Matches CLAUDE.md's claim for the original prototype: a randomized
-  // sweep across every injury flag and readiness level must never serve a
-  // movement whose contraindications match a flagged injury.
-  const allInjuryFlags = Array.from(new Set(MOVS.flatMap((m) => m.contra))).map((c) => {
-    // Use a substring that would actually match (e.g. "knee" matches
-    // "acute knee injury") rather than the full contraindication string,
-    // since that's how the app's check-in flags are phrased.
-    const words = c.split(" ");
-    return words[words.length - 2] || c;
-  });
+  // Real canonical flags — the exact vocabulary a user actually picks from
+  // (data/injuries.ts / content.ts's INJURY_OPTIONS), not a substring
+  // self-derived from contra text. Deriving test flags from the contra
+  // strings themselves is precisely how the old suite's sweeps passed
+  // vacuously: nothing matched a real flag -> nothing was ever excluded ->
+  // "no violations found" looked like a pass.
+  const allInjuryFlags = [...INJURY_KEYS];
 
   it("never serves a movement matching a flagged injury, across 200 randomized runs", () => {
     for (let i = 0; i < 200; i++) {
@@ -41,7 +48,7 @@ describe("generateDeterministicSession — safety (non-negotiable)", () => {
       const result = generateDeterministicSession({ readiness, injuryFlags, sessionHistory: [] });
 
       result.main.forEach((exercise) => {
-        const matches = exercise.contra.filter((c) => injuryFlags.some((flag) => c.toLowerCase().includes(flag.toLowerCase())));
+        const matches = exercise.contra.filter((c) => injuryFlags.includes(c));
         expect(matches, `"${exercise.name}" was served despite matching flags [${injuryFlags.join(", ")}]`).toEqual([]);
       });
     }
@@ -51,12 +58,45 @@ describe("generateDeterministicSession — safety (non-negotiable)", () => {
     const result = generateDeterministicSession({ readiness: 3, injuryFlags: ["knee"], sessionHistory: [] });
     expect(result.flagged.length).toBeGreaterThan(0);
     result.flagged.forEach((f) => {
-      expect(f.matchedInjuries.some((m) => m.toLowerCase().includes("knee"))).toBe(true);
+      expect(f.matchedInjuries).toContain("knee");
+    });
+  });
+
+  // §7.2 — the exact regression case the findings call out: every movement
+  // contraindicated for low_back (14+ of them, including Barbell Deadlift,
+  // KB Swing, Barbell Back Squat, and Barbell Bent-Over Row) must never be
+  // served to a user flagging low_back. Computed from live data, not a
+  // hardcoded count, so it stays honest as the library grows.
+  it("regression: a low_back flag excludes every low_back-contraindicated movement, across 100 randomized runs", () => {
+    const backContraNames = MOVS.filter((m) => m.contra.includes("low_back")).map((m) => m.name);
+    expect(backContraNames.length).toBeGreaterThanOrEqual(14);
+
+    for (let i = 0; i < 100; i++) {
+      const readiness = 1 + Math.floor(Math.random() * 5);
+      const result = generateDeterministicSession({ readiness, injuryFlags: ["low_back"], sessionHistory: [] });
+      [...result.warmup, ...result.main, ...result.cooldown].forEach((exercise) => {
+        expect(backContraNames, `"${exercise.name}" was served while flagging low_back`).not.toContain(exercise.name);
+      });
+    }
+  });
+
+  // §7.3 — guards against a future vacuous pass: every one of the 10
+  // canonical flags must actually exclude at least one movement, not just
+  // "never serves anything wrong" (which trivially passes if nothing ever
+  // matches, exactly how the old bug went undetected).
+  it("excludes at least one movement for every one of the 10 canonical injury flags", () => {
+    // Full equipment access — some contraindicated movements (e.g. the
+    // elbow-flagged Pull-up/Chin-up/Cable Tricep Pushdown) require
+    // equipment, so a bodyweight-only context could never reach them and
+    // the flag would look vacuously "safe" for the wrong reason.
+    INJURY_KEYS.forEach((key) => {
+      const result = generateDeterministicSession({ readiness: 5, injuryFlags: [key], sessionHistory: [], trainingLocation: "commercial", equipment: [] });
+      expect(result.flagged.length, `flag "${key}" excluded nothing — check MOVS has at least one movement contraindicated for it`).toBeGreaterThan(0);
     });
   });
 
   it("clamps exercise count to the safe pool size when many movements are flagged", () => {
-    // Flag nearly every injury type at once to shrink the safe pool hard.
+    // Flag every injury type at once to shrink the safe pool hard.
     const result = generateDeterministicSession({ readiness: 5, injuryFlags: allInjuryFlags, sessionHistory: [] });
     expect(result.main.length).toBeLessThanOrEqual(5);
   });
@@ -84,10 +124,7 @@ describe("generateDeterministicSession — safety (non-negotiable)", () => {
 // cool-down phase. The existing safety rule (never serve a contraindicated
 // movement) has to hold for these new pools too, not just `main`.
 describe("generateDeterministicSession — warm-up/cool-down (session-structure-spec.md §1)", () => {
-  const allInjuryFlags = Array.from(new Set(MOVS.flatMap((m) => m.contra))).map((c) => {
-    const words = c.split(" ");
-    return words[words.length - 2] || c;
-  });
+  const allInjuryFlags = [...INJURY_KEYS];
 
   it("never serves a warm-up or cool-down movement matching a flagged injury, across 100 randomized runs", () => {
     for (let i = 0; i < 100; i++) {
@@ -98,7 +135,7 @@ describe("generateDeterministicSession — warm-up/cool-down (session-structure-
       const result = generateDeterministicSession({ readiness, injuryFlags, sessionHistory: [] });
 
       [...result.warmup, ...result.cooldown].forEach((exercise) => {
-        const matches = exercise.contra.filter((c) => injuryFlags.some((flag) => c.toLowerCase().includes(flag.toLowerCase())));
+        const matches = exercise.contra.filter((c) => injuryFlags.includes(c));
         expect(matches, `"${exercise.name}" was served despite matching flags [${injuryFlags.join(", ")}]`).toEqual([]);
       });
     }
@@ -226,8 +263,7 @@ describe("getSession", () => {
   it("never includes a flagged movement in the returned exercises", () => {
     const session = getSession({ tone: "Balanced", checkIn: { readiness: 4, sleep: 3, mood: 3, stress: 3 }, week: 1, equipment: ["bodyweight"], injuries: ["knee"], sessionHistory: [], christianLens: false, userName: "" });
     session.exercises.forEach((e) => {
-      const matches = e.movement.contra.filter((c) => c.toLowerCase().includes("knee"));
-      expect(matches).toEqual([]);
+      expect(e.movement.contra).not.toContain("knee");
     });
   });
 

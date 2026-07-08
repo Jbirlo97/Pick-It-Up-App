@@ -103,4 +103,9 @@ export const TUTORIAL_CARDS: TutorialCard[] = [
   { title: "You're never locked out", body: "Miss a day, log late, change your mind — none of it resets your progress. Just pick it back up." },
 ];
 
-export const INJURY_OPTIONS = ["lower back", "knee", "shoulder", "wrist", "ankle", "hip"];
+// Canonical injury keys (data/injuries.ts) — extended from 6 to 10 per
+// docs/trainer-review-findings.md §2: contra data already referenced elbow,
+// groin, hamstring, and achilles, but no flag existed that could ever fire
+// them (guarding high-consequence movements like Nordic Curl/hamstring and
+// pull-ups/elbow). Render INJURY_LABELS[key] for display, never the raw key.
+export { INJURY_KEYS as INJURY_OPTIONS } from "./injuries";

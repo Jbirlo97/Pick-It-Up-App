@@ -9,9 +9,12 @@ export interface SwapOption {
   apply: (current: SessionExercise) => SessionExercise;
 }
 
+// Per docs/trainer-review-findings.md §1: exact key equality, not substring
+// matching — this was a second, independent copy of the same bug that
+// silently broke "lower back" vs "acute low back pain" in the engines.
 function isContraindicated(movement: Movement, injuryFlags: string[]): boolean {
   if (!injuryFlags || injuryFlags.length === 0) return false;
-  return movement.contra.some((c) => injuryFlags.some((flag) => c.toLowerCase().includes(flag.toLowerCase())));
+  return movement.contra.some((c) => injuryFlags.includes(c));
 }
 
 function findMovementByName(name: string): Movement | undefined {

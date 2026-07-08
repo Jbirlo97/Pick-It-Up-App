@@ -6,6 +6,7 @@ import { SectionLabel } from "../components/Shared";
 import { getSwapOptions, type SwapOption } from "../lib/exerciseSwap";
 import { logSet, parsePrescribedReps } from "../lib/setLogging";
 import { suggestProgression } from "../lib/progression";
+import { CONTRA_DISPLAY } from "../data/injuries";
 import type { AppState, PlayerSession, SessionExercise, SetState } from "../types";
 
 type Phase = "intro" | "active" | "rest" | "complete";
@@ -480,11 +481,12 @@ export function Player({
                 <div style={{ fontSize: 10, color: C.rd, fontFamily: "Inter,sans-serif", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>Contraindications</div>
                 {mov.contra.map((c, i) => (
                   <div key={i} style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.ch }}>
-                    · {c}
+                    · {CONTRA_DISPLAY[c]}
                   </div>
                 ))}
               </div>
             ) : null}
+            {mov.note ? <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.mu, fontStyle: "italic", lineHeight: 1.5, marginTop: 10 }}>{mov.note}</div> : null}
           </div>
         ) : null}
       </div>

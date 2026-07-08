@@ -1,3 +1,5 @@
+import type { InjuryKey } from "./injuries";
+
 export interface ExerciseV2 {
   exercise_id: string;
   name: string;
@@ -13,7 +15,9 @@ export interface ExerciseV2 {
   confidence_demand: string;
   energy_demand: string;
   nervous_system_effect: string;
-  contraindications: string[];
+  // Canonical injury keys, matched by exact equality — see data/injuries.ts
+  // and docs/trainer-review-findings.md §1.
+  contraindications: InjuryKey[];
   sub_1: string;
   sub_2: string;
   sub_3: string;
@@ -23,6 +27,8 @@ export interface ExerciseV2 {
   all_cues: string[];
   common_errors: string[];
   breath_cue: string;
+  // Educational aside, not an exclusion — docs/trainer-review-findings.md §5.
+  note?: string;
   video_url: string;
 }
 
@@ -57,7 +63,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Box squat",
     "sub_2": "Bulgarian split squat",
@@ -97,8 +103,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement",
-      "wrist injury"
+      "shoulder",
+      "wrist"
     ],
     "sub_1": "Elevated push-up",
     "sub_2": "Archer push-up",
@@ -138,7 +144,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Wall hip hinge",
     "sub_2": "Single-leg RDL",
@@ -178,7 +184,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Supine hip extension",
     "sub_2": "Single-leg glute bridge",
@@ -217,7 +223,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder injury"
+      "shoulder"
     ],
     "sub_1": "Knee plank",
     "sub_2": "RKC plank",
@@ -256,7 +262,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Arm-only version",
     "sub_2": "Dead bug with band",
@@ -296,7 +302,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
     "contraindications": [
-      "acute hip labral tear"
+      "hip"
     ],
     "sub_1": "Supine figure-4",
     "sub_2": "90/90 active rotations",
@@ -327,12 +333,15 @@ export const EXERCISES: ExerciseV2[] = [
     "difficulty": "Beginner",
     "tier": 1,
     "primary_muscles": "Diaphragm, Nervous System",
-    "primary_muscle_keys": [],
+    "primary_muscle_keys": [
+      "diaphragm"
+    ],
     "coordination_demand": "Low",
     "confidence_demand": "Low",
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
-    "contraindications": [],
+    "contraindications": [
+    ],
     "sub_1": "2-2-2-2 pattern",
     "sub_2": "6-6-6-6 pattern",
     "sub_3": "",
@@ -351,6 +360,7 @@ export const EXERCISES: ExerciseV2[] = [
       "Counting too fast"
     ],
     "breath_cue": "Exhale on exertion",
+    "note": "Avoid long breath-holds if you have uncontrolled high blood pressure or a history of fainting — shorten the holds if it feels straining, not calming.",
     "video_url": "app://video/breath_work"
   },
   {
@@ -372,7 +382,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Short range",
     "sub_2": "Inchworm with push-up",
@@ -412,7 +422,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Split squat",
     "sub_2": "Bulgarian split squat",
@@ -453,7 +463,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Activating",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Squat to calf raise",
     "sub_2": "Weighted squat jump",
@@ -493,7 +503,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Alternating limbs only",
     "sub_2": "Superman hold 30s",
@@ -533,7 +543,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Partial wall sit",
     "sub_2": "Single-leg wall sit",
@@ -572,7 +582,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute achilles injury"
+      "achilles"
     ],
     "sub_1": "Seated calf raise",
     "sub_2": "Single-leg calf raise",
@@ -612,7 +622,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "wrist injury"
+      "wrist"
     ],
     "sub_1": "Bear hold only",
     "sub_2": "Bear crawl with band",
@@ -652,7 +662,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Push-up only",
     "sub_2": "T push-up with DB row",
@@ -691,7 +701,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Bent-knee hollow hold",
     "sub_2": "Hollow rock",
@@ -731,7 +741,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute ankle instability"
+      "ankle"
     ],
     "sub_1": "Kickstand RDL",
     "sub_2": "Loaded single-leg RDL",
@@ -771,7 +781,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
     "contraindications": [
-      "acute shoulder dislocation"
+      "shoulder",
+      "wrist"
     ],
     "sub_1": "Assisted hang",
     "sub_2": "Active hang scapular pulls",
@@ -790,6 +801,7 @@ export const EXERCISES: ExerciseV2[] = [
       "Jumping off"
     ],
     "breath_cue": "Exhale on exertion",
+    "note": "Some shoulder issues respond well to graded hanging — that's a conversation for a physio, not a flag in an app.",
     "video_url": "app://video/dead_hang"
   },
   {
@@ -811,7 +823,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Incline row",
     "sub_2": "Weighted row",
@@ -850,7 +862,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute hamstring tear"
+      "hamstring"
     ],
     "sub_1": "Assisted Nordic with band",
     "sub_2": "Unassisted Nordic",
@@ -890,7 +902,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder injury"
+      "shoulder"
     ],
     "sub_1": "Knee-down side plank",
     "sub_2": "Side plank with leg lift",
@@ -930,7 +942,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Elevated pike push-up",
     "sub_2": "Wall-assisted handstand push-up",
@@ -970,7 +982,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Lower step height",
     "sub_2": "Weighted step-up",
@@ -1010,7 +1022,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute grip or wrist injury"
+      "wrist"
     ],
     "sub_1": "Shorter distance, lighter load",
     "sub_2": "Heavier load or single-arm carry",
@@ -1050,7 +1062,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Arm-only or leg-only",
     "sub_2": "Bird dog with pause and pulse",
@@ -1090,7 +1102,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
     "contraindications": [
-      "acute groin strain"
+      "groin"
     ],
     "sub_1": "Assisted Cossack (hold support)",
     "sub_2": "Loaded Cossack squat",
@@ -1130,7 +1142,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Activating",
     "contraindications": [
-      "wrist injury"
+      "wrist"
     ],
     "sub_1": "Slow controlled tempo",
     "sub_2": "Mountain climber with sliders",
@@ -1170,8 +1182,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement",
-      "wrist injury"
+      "shoulder",
+      "wrist"
     ],
     "sub_1": "Wide push-up",
     "sub_2": "Full one-arm push-up progression",
@@ -1211,7 +1223,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Box-assisted pistol squat",
     "sub_2": "Full unassisted pistol squat",
@@ -1249,7 +1261,8 @@ export const EXERCISES: ExerciseV2[] = [
     "confidence_demand": "Low",
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
-    "contraindications": [],
+    "contraindications": [
+    ],
     "sub_1": "Knee version",
     "sub_2": "Scapular push-up at the top of a push-up",
     "sub_3": "",
@@ -1286,7 +1299,9 @@ export const EXERCISES: ExerciseV2[] = [
     "confidence_demand": "Low",
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
-    "contraindications": [],
+    "contraindications": [
+      "shoulder"
+    ],
     "sub_1": "Smaller range of rotation",
     "sub_2": "Add a reach and hold at end range",
     "sub_3": "",
@@ -1325,7 +1340,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute groin strain"
+      "groin"
     ],
     "sub_1": "Bent bottom-knee version",
     "sub_2": "Full straight-leg Copenhagen plank",
@@ -1364,7 +1379,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Activating",
     "contraindications": [
-      "acute ankle injury"
+      "ankle"
     ],
     "sub_1": "Imaginary rope, same rhythm",
     "sub_2": "Double-unders",
@@ -1403,7 +1418,8 @@ export const EXERCISES: ExerciseV2[] = [
     "confidence_demand": "Low",
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
-    "contraindications": [],
+    "contraindications": [
+    ],
     "sub_1": "Smaller circles, seated",
     "sub_2": "Standing on an unstable surface",
     "sub_3": "",
@@ -1441,7 +1457,9 @@ export const EXERCISES: ExerciseV2[] = [
     "confidence_demand": "Low",
     "energy_demand": "Low",
     "nervous_system_effect": "Regulating",
-    "contraindications": [],
+    "contraindications": [
+      "wrist"
+    ],
     "sub_1": "Smaller range",
     "sub_2": "Add a pause at end range",
     "sub_3": "",
@@ -1459,6 +1477,7 @@ export const EXERCISES: ExerciseV2[] = [
       "Rushing the transitions"
     ],
     "breath_cue": "Exhale on exertion",
+    "note": "During an active back spasm, rest first — return to gentle movement as the acute phase settles.",
     "video_url": "app://video/cat_cow"
   },
   {
@@ -1478,7 +1497,8 @@ export const EXERCISES: ExerciseV2[] = [
     "confidence_demand": "Low",
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
-    "contraindications": [],
+    "contraindications": [
+    ],
     "sub_1": "Lighter band",
     "sub_2": "Heavier band or slow tempo",
     "sub_3": "",
@@ -1498,13 +1518,6 @@ export const EXERCISES: ExerciseV2[] = [
     "breath_cue": "Exhale on exertion",
     "video_url": "app://video/banded_pull_apart"
   },
-
-  // ---------------------------------------------------------------------------
-  // EQUIPMENT-BASED EXERCISES — mirrors the equivalent additions in
-  // exercises-legacy.ts (MDB). Same derivation status as the rest of this
-  // file: heuristic, not yet reviewed by a trainer.
-  // ---------------------------------------------------------------------------
-
   {
     "exercise_id": "EX_DB_GOBLET_SQUAT",
     "name": "Goblet Squat (Dumbbell)",
@@ -1524,7 +1537,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Bodyweight Goblet Squat",
     "sub_2": "Dumbbell Front Squat",
@@ -1564,7 +1577,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Bodyweight Hip Hinge",
     "sub_2": "Single-leg Dumbbell RDL",
@@ -1604,7 +1617,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Push-up",
     "sub_2": "Barbell Bench Press",
@@ -1644,7 +1657,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder injury"
+      "low_back",
+      "shoulder"
     ],
     "sub_1": "Bodyweight Row",
     "sub_2": "Dumbbell Renegade Row",
@@ -1684,7 +1698,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Pike Push-up",
     "sub_2": "Barbell Overhead Press",
@@ -1724,8 +1738,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury",
-      "acute low back pain"
+      "low_back",
+      "knee"
     ],
     "sub_1": "Dumbbell Goblet Squat",
     "sub_2": "Barbell Front Squat",
@@ -1765,7 +1779,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Dumbbell Romanian Deadlift",
     "sub_2": "Deficit Deadlift",
@@ -1805,7 +1819,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Dumbbell Bench Press",
     "sub_2": "Close-Grip Bench Press",
@@ -1845,7 +1859,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Dumbbell Shoulder Press",
     "sub_2": "Push Press",
@@ -1885,7 +1899,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Dumbbell Single-Arm Row",
     "sub_2": "Pendlay Row",
@@ -1925,7 +1939,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Activating",
     "contraindications": [
-      "acute low back pain"
+      "low_back",
+      "shoulder"
     ],
     "sub_1": "Dumbbell Romanian Deadlift",
     "sub_2": "Single-arm Kettlebell Swing",
@@ -1965,7 +1980,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute knee injury"
+      "knee"
     ],
     "sub_1": "Bodyweight Goblet Squat",
     "sub_2": "Kettlebell Front Squat",
@@ -2005,7 +2020,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder injury"
+      "low_back",
+      "shoulder"
     ],
     "sub_1": "Bodyweight Row",
     "sub_2": "Dumbbell Single-Arm Row",
@@ -2045,8 +2061,9 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder injury",
-      "acute low back pain"
+      "low_back",
+      "knee",
+      "shoulder"
     ],
     "sub_1": "Half Get-Up (to elbow only)",
     "sub_2": "Turkish Get-Up with heavier load",
@@ -2085,7 +2102,8 @@ export const EXERCISES: ExerciseV2[] = [
     "confidence_demand": "Low",
     "energy_demand": "Low",
     "nervous_system_effect": "Neutral",
-    "contraindications": [],
+    "contraindications": [
+    ],
     "sub_1": "Bodyweight Row",
     "sub_2": "Dumbbell Single-Arm Row",
     "sub_3": "",
@@ -2124,7 +2142,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder injury"
+      "shoulder",
+      "wrist"
     ],
     "sub_1": "Bodyweight Row",
     "sub_2": "Pull-up",
@@ -2164,8 +2183,9 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement",
-      "acute elbow injury"
+      "shoulder",
+      "wrist",
+      "elbow"
     ],
     "sub_1": "Band-Assisted Pull-up",
     "sub_2": "Weighted Pull-up",
@@ -2205,8 +2225,9 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "High",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute elbow injury",
-      "shoulder impingement"
+      "shoulder",
+      "wrist",
+      "elbow"
     ],
     "sub_1": "Band-Assisted Pull-up",
     "sub_2": "Weighted Chin-up",
@@ -2246,7 +2267,8 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute shoulder injury"
+      "shoulder",
+      "wrist"
     ],
     "sub_1": "Dead Bug",
     "sub_2": "Hanging Leg Raise (straight legs)",
@@ -2286,7 +2308,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute low back pain"
+      "low_back"
     ],
     "sub_1": "Band Row",
     "sub_2": "Barbell Bent-Over Row",
@@ -2326,7 +2348,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Band-Assisted Pull-up",
     "sub_2": "Pull-up",
@@ -2365,7 +2387,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Low",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "acute elbow injury"
+      "elbow"
     ],
     "sub_1": "Push-up",
     "sub_2": "Overhead Cable Tricep Extension",
@@ -2405,7 +2427,7 @@ export const EXERCISES: ExerciseV2[] = [
     "energy_demand": "Moderate",
     "nervous_system_effect": "Neutral",
     "contraindications": [
-      "shoulder impingement"
+      "shoulder"
     ],
     "sub_1": "Push-up",
     "sub_2": "Barbell Bench Press",

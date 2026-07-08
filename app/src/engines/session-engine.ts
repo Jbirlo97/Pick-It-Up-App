@@ -47,11 +47,14 @@ async function callClaude(system: string, userMsg: string, tokens?: number) {
 }
 */
 
+// Per docs/trainer-review-findings.md §1: exact key equality against the
+// canonical injury vocabulary (data/injuries.ts), not substring matching.
+// Substring matching let "lower back" silently never match "acute low back
+// pain" — this can't drift the same way, since both sides draw from the
+// same fixed enum and a typo there is a type error, not a silent no-op.
 export function checkMovementContraindications(movement: Movement, injuryFlags: string[]) {
   if (!injuryFlags || injuryFlags.length === 0) return { blocked: false, matches: [] as string[] };
-  const matches = movement.contra.filter((c) =>
-    injuryFlags.some((flag) => c.toLowerCase().includes(flag.toLowerCase()))
-  );
+  const matches = movement.contra.filter((c) => injuryFlags.includes(c));
   return { blocked: matches.length > 0, matches };
 }
 

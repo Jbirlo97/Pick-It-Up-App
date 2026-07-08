@@ -78,6 +78,20 @@ going live.
   37 entries in `EXERCISES` and corrected any fields that don't hold up —
   the "Superman" → "Full Body" pattern mislabel mentioned in the code
   comments is a known example to start with.
+- **Status (2026-07-08):** Closed for the contraindication layer —
+  see docs/trainer-review-findings.md. Josh's review found and fixed a
+  critical bug (injury-flag substring matching silently never matched
+  "lower back" against "acute low back pain" — 14 movements were served
+  to back-flagged users despite the safety sweeps "passing"), moved
+  contraindications to a canonical key vocabulary across all 60
+  movements, extended the injury flag picker from 6 to 10 keys, and added
+  regression + vocabulary-lint tests so this can't silently regress.
+  `pattern`/`difficulty`/`coordination_demand`/`confidence_demand`/
+  `energy_demand`/`nervous_system_effect` were NOT part of this pass —
+  cues/errors/tiers were spot-checked and stand as-is, but the
+  "Superman" → "Full Body" pattern mislabel and the rest of the derived
+  classification fields (the original scope of this item, and the subject
+  of the separate trainer-review handoff tool) are still open.
 
 ### 2.2 Nutrition data verification against AUSNUT/FSANZ
 - **Why:** Every recipe in `recipe-engine-data.js` is flagged

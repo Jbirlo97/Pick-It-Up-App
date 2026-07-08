@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { C } from "../theme";
 import { INJURY_OPTIONS } from "../data/content";
+import { INJURY_LABELS } from "../data/injuries";
 import { getInsight } from "../engines/session-engine";
 import { upsertTodayCheckIn } from "../lib/db";
 import { useUserId } from "../state/UserContext";
@@ -56,7 +57,7 @@ export function CheckIn({ state, setState, setScreen }: { state: AppState; setSt
                 }
                 style={{ padding: "6px 12px", borderRadius: 20, border: "1px solid " + (active ? C.rd : C.sl), background: active ? "rgba(192,57,43,0.08)" : "transparent", color: active ? C.rd : C.mu, fontFamily: "Inter,sans-serif", fontSize: 12, cursor: "pointer" }}
               >
-                {inj}
+                {INJURY_LABELS[inj]}
               </button>
             );
           })}

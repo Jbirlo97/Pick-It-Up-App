@@ -6,6 +6,7 @@ import { getDetailedSession } from "../engines/program-engine";
 import { insertSession } from "../lib/db";
 import { useUserId } from "../state/UserContext";
 import { mapEquipmentToEngineAccess } from "../lib/equipmentAccess";
+import { CONTRA_DISPLAY } from "../data/injuries";
 import { toExerciseLogEntry } from "../lib/setLogging";
 import { RotatingQuote } from "../components/RotatingQuote";
 import { Spinner } from "../components/Shared";
@@ -193,8 +194,11 @@ export function Movement({ state, setState }: { state: AppState; setState: SetSt
                       </div>
                       {m.contra.length > 0 ? (
                         <div style={{ padding: "5px 8px", background: "rgba(192,57,43,0.06)", borderRadius: 6, marginTop: 8 }}>
-                          <span style={{ fontFamily: "Inter,sans-serif", fontSize: 10, color: C.rd }}>⚠ {m.contra.join(" · ")}</span>
+                          <span style={{ fontFamily: "Inter,sans-serif", fontSize: 10, color: C.rd }}>⚠ {m.contra.map((c) => CONTRA_DISPLAY[c]).join(" · ")}</span>
                         </div>
+                      ) : null}
+                      {m.note ? (
+                        <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.mu, fontStyle: "italic", marginTop: 8, lineHeight: 1.5 }}>{m.note}</div>
                       ) : null}
                     </div>
                   ) : null}
