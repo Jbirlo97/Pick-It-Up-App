@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
-import type { AppState, CommunityPost, CravingEntry, Goal, Meal, PlayerSession, SessionHistoryEntry, SleepEntry, Sobriety } from "../types";
+import { toExerciseLogEntry } from "./setLogging";
+import type { AppState, CommunityPost, CravingEntry, Goal, Meal, PlayerSession, SessionExercise, SessionHistoryEntry, SleepEntry, Sobriety } from "../types";
 
 // Data-access layer for Supabase persistence (docs/backend-brief.md Section
 // 2). Every function assumes `supabase` is non-null — callers must check
@@ -156,27 +157,67 @@ export async function upsertTodayCheckIn(userId: string, checkIn: NonNullable<Ap
 
 export async function fetchSessionHistory(userId: string): Promise<SessionHistoryEntry[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.from("sessions").select("date, readiness_at_time, completed").eq("user_id", userId).order("created_at", { ascending: true });
+  const { data, error } = await supabase.from("sessions").select("date, readiness_at_time, completed, exercises").eq("user_id", userId).order("created_at", { ascending: true });
   if (error) {
     console.error("fetchSessionHistory failed", error);
     return [];
   }
-  return (data || []).map((r) => ({ date: r.date as string, readiness: (r.readiness_at_time as number) ?? 3, completed: r.completed as boolean }));
+  return (data || []).map((r) => {
+    // `exercises` is the SessionExercise[] blob from insertSession below —
+    // pull out just the compact per-set logs (see §3 v1.5 progression,
+    // which reads this back via suggestProgression).
+    const storedExercises = (r.exercises as SessionExercise[] | null) || [];
+    const exerciseLogs = storedExercises.map(toExerciseLogEntry).filter((e): e is NonNullable<typeof e> => e !== null);
+    return {
+      date: r.date as string,
+      readiness: (r.readiness_at_time as number) ?? 3,
+      completed: r.completed as boolean,
+      ...(exerciseLogs.length ? { exercises: exerciseLogs } : {}),
+    };
+  });
 }
 
 export async function insertSession(userId: string, source: "quick" | "detailed", session: PlayerSession, readiness: number): Promise<void> {
   if (!supabase) return;
-  const { error } = await supabase.from("sessions").insert({
-    user_id: userId,
-    date: new Date().toISOString().slice(0, 10),
-    source,
-    session_title: session.sessionTitle,
-    exercises: session.exercises,
-    readiness_at_time: readiness,
-    completed: true,
-    flagged_contraindications: session.flaggedExercises.length ? session.flaggedExercises : null,
-  });
-  if (error) console.error("insertSession failed", error);
+  const { data, error } = await supabase
+    .from("sessions")
+    .insert({
+      user_id: userId,
+      date: new Date().toISOString().slice(0, 10),
+      source,
+      session_title: session.sessionTitle,
+      exercises: session.exercises,
+      readiness_at_time: readiness,
+      completed: true,
+      flagged_contraindications: session.flaggedExercises.length ? session.flaggedExercises : null,
+    })
+    .select("id")
+    .single();
+  if (error) {
+    console.error("insertSession failed", error);
+    return;
+  }
+
+  // Additive: also write a normalized row per logged set (see
+  // supabase/migrations/0001_exercise_set_logs.sql) so per-set history is
+  // queryable directly, not just embedded in the `exercises` JSONB blob.
+  const setLogRows = session.exercises.flatMap((ex) =>
+    (ex.setsLogged || []).map((set, i) => ({
+      user_id: userId,
+      session_id: data.id,
+      movement_key: ex.movementKey,
+      movement_name: ex.movement.name,
+      equipment: ex.movement.equipment,
+      set_number: i + 1,
+      reps: set.reps,
+      prescribed_reps: set.prescribedReps,
+      weight: set.weight ?? null,
+    }))
+  );
+  if (setLogRows.length) {
+    const { error: logError } = await supabase.from("exercise_set_logs").insert(setLogRows);
+    if (logError) console.error("insertSession: exercise_set_logs insert failed", logError);
+  }
 }
 
 export async function fetchMeals(userId: string): Promise<Meal[]> {

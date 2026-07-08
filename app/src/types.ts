@@ -27,10 +27,32 @@ export interface AiInsight {
   quote: string;
 }
 
+// Per docs/session-structure-spec.md §3 v1: one logged set. `prescribedReps`
+// is captured at logging time (parsed from the exercise's `reps` text) so
+// v1.5 progression can later tell "did they hit the target" without
+// re-deriving it from history. `weight` is present only when the user
+// entered one (equipment movements only — bodyweight logs reps alone).
+export interface SetLogEntry {
+  reps: number;
+  prescribedReps: number | null;
+  weight?: number;
+}
+
+// Compact per-exercise history record — deliberately smaller than
+// SessionExercise (no cues/errors/contra) since this is what gets persisted
+// in SessionHistoryEntry across many sessions.
+export interface ExerciseLogEntry {
+  movementKey: string;
+  name: string;
+  equipment: string;
+  setsLogged: SetLogEntry[];
+}
+
 export interface SessionHistoryEntry {
   date: string;
   readiness: number;
   completed: boolean;
+  exercises?: ExerciseLogEntry[];
 }
 
 export type SessionPhase = "warmup" | "main" | "cooldown";
@@ -44,6 +66,7 @@ export interface SessionExercise {
   coachNote: string;
   phase: SessionPhase;
   estMinutes: number;
+  setsLogged?: SetLogEntry[];
 }
 
 export interface FlaggedMovement {

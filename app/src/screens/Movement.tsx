@@ -6,10 +6,11 @@ import { getDetailedSession } from "../engines/program-engine";
 import { insertSession } from "../lib/db";
 import { useUserId } from "../state/UserContext";
 import { mapEquipmentToEngineAccess } from "../lib/equipmentAccess";
+import { toExerciseLogEntry } from "../lib/setLogging";
 import { RotatingQuote } from "../components/RotatingQuote";
 import { Spinner } from "../components/Shared";
 import { Player } from "./Player";
-import type { AppState, Movement as MovementType, SetState } from "../types";
+import type { AppState, ExerciseLogEntry, Movement as MovementType, SetState } from "../types";
 
 export function Movement({ state, setState }: { state: AppState; setState: SetState }) {
   const [open, setOpen] = useState(false);
@@ -48,7 +49,11 @@ export function Movement({ state, setState }: { state: AppState; setState: SetSt
   const finishSession = useCallback(() => {
     setState((s) => {
       const readiness = s.checkIn ? s.checkIn.readiness : 3;
-      const entry = { date: new Date().toDateString(), readiness, completed: true };
+      // Per docs/session-structure-spec.md §3 v1: carry any per-set logs
+      // (reps/weight) into session history so v1.5 progression suggestions
+      // have real data to read on the next session with this movement.
+      const exerciseLogs: ExerciseLogEntry[] = s.currentSession ? s.currentSession.exercises.map(toExerciseLogEntry).filter((e): e is ExerciseLogEntry => e !== null) : [];
+      const entry = { date: new Date().toDateString(), readiness, completed: true, ...(exerciseLogs.length ? { exercises: exerciseLogs } : {}) };
       if (userId && s.currentSession) insertSession(userId, sessionSource, s.currentSession, readiness);
       return { ...s, sessionHistory: s.sessionHistory.concat([entry]), currentSession: null, day: s.day + 1 };
     });
