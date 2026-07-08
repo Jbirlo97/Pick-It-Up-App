@@ -67,6 +67,12 @@ export interface SessionExercise {
   phase: SessionPhase;
   estMinutes: number;
   setsLogged?: SetLogEntry[];
+  // Per docs/session-structure-spec.md §4: exercises sharing the same
+  // `group` id are a superset, meant to be rendered visually linked with a
+  // SUPERSET label. Data-model only for now — nothing assigns this yet and
+  // no Player UI reads it; the spec explicitly defers the player UI to a
+  // later pass ("ship the data-model support now").
+  group?: string;
 }
 
 export interface FlaggedMovement {
